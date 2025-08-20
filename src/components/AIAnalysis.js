@@ -110,37 +110,32 @@ const generateAdvancedAnalysis = (results) => {
   return { stats, advice: aiAdvice };
 };
 
-// AI風のアドバイス生成
+// AI風のアドバイス生成（自己評価重視）
 const generateAIStyleAdvice = (stats, results) => {
   const advice = [];
   
   // AI分析ヘッダー
   advice.push('🤖 【AI戦績分析結果】\n');
   
-  // スキルレベル判定
-  let skillLevel, mainAdvice;
-  if (stats.escapeRate >= 70) {
-    skillLevel = '上級者';
-    mainAdvice = 'あなたの実力は既に上級者レベルです！安定性の維持と新しい挑戦を心がけましょう。';
-  } else if (stats.escapeRate >= 50) {
-    skillLevel = '中上級者';
-    mainAdvice = '中上級者として順調に成長中！苦手分野を克服すれば更なる飛躍が期待できます。';
-  } else if (stats.escapeRate >= 30) {
-    skillLevel = '中級者';
-    mainAdvice = '中級者として基礎は身についています。特定のスキルに集中して練習しましょう。';
-  } else if (stats.escapeRate >= 15) {
-    skillLevel = '初中級者';
-    mainAdvice = '基本は理解されています。チェイスと状況判断を重点的に練習しましょう。';
-  } else {
-    skillLevel = '初心者';
-    mainAdvice = 'まだ始めたばかりですね！基礎からしっかり積み上げていきましょう。';
+  // 自己評価の分析
+  const selfRatingAnalysis = analyzeSelfRating(results);
+  
+  // スキルレベル判定（自己評価 + 脱出率の複合判定）
+  const skillAssessment = determineSkillLevel(stats, selfRatingAnalysis, results);
+  
+  advice.push(`📊 スキルレベル: ${skillAssessment.level} (脱出率 ${stats.escapeRate}% / 自己評価平均 ${selfRatingAnalysis.averageRating})`);
+  advice.push(`💬 総評: ${skillAssessment.advice}\n`);
+  
+  // 自己評価に基づく褒めポイント
+  const praisePoints = generatePraiseBasedOnSelfRating(selfRatingAnalysis, results);
+  if (praisePoints.length > 0) {
+    advice.push('✨ あなたの良いところ');
+    praisePoints.forEach(praise => advice.push(`・${praise}`));
+    advice.push('');
   }
   
-  advice.push(`📊 **スキルレベル**: ${skillLevel} (脱出率 ${stats.escapeRate}%)`);
-  advice.push(`💬 **総評**: ${mainAdvice}\n`);
-  
   // 詳細分析
-  advice.push('🔍 **詳細分析**');
+  advice.push('🔍 詳細分析');
   
   // 試合数による分析
   if (stats.totalGames < 5) {
@@ -172,11 +167,11 @@ const generateAIStyleAdvice = (stats, results) => {
   }
   
   // キラー対策
-  advice.push('\n🎭 **キラー対策**');
+  advice.push('\n🎭 キラー対策');
   
   if (stats.weakKillers.length > 0) {
     const weakest = stats.weakKillers[0];
-    advice.push(`・**最苦手**: ${weakest.killer} (脱出率${weakest.winRate}%)`);
+    advice.push(`・最苦手: ${weakest.killer} (脱出率${weakest.winRate}%)`);
     
     if (KILLER_ADVICE[weakest.killer]) {
       advice.push(`  💡 ${KILLER_ADVICE[weakest.killer]}`);
@@ -184,7 +179,7 @@ const generateAIStyleAdvice = (stats, results) => {
     
     if (stats.weakKillers.length > 1) {
       const second = stats.weakKillers[1];
-      advice.push(`・**苦手**: ${second.killer} (脱出率${second.winRate}%)`);
+      advice.push(`・苦手: ${second.killer} (脱出率${second.winRate}%)`);
     }
   } else {
     advice.push('・特に苦手なキラーは見当たりません。バランス良く対応できています');
@@ -192,35 +187,23 @@ const generateAIStyleAdvice = (stats, results) => {
   
   if (stats.strongKillers.length > 0) {
     const strongest = stats.strongKillers[0];
-    advice.push(`・**得意**: ${strongest.killer} (脱出率${strongest.winRate}%) この立ち回りを他でも活用！`);
+    advice.push(`・得意: ${strongest.killer} (脱出率${strongest.winRate}%) この立ち回りを他でも活用！`);
   }
   
-  // 改善提案
-  advice.push('\n🎯 **今週の改善目標**');
-  
-  if (stats.escapeRate < 25) {
-    advice.push('1. **基礎練習**: チェイスの基本（板・窓の使い方）をマスター');
-    advice.push('2. **マップ学習**: よく使われるマップ3つの地形を覚える');
-    advice.push('3. **パーク研究**: 初心者向けパーク構成を試す');
-  } else if (stats.escapeRate < 50) {
-    advice.push('1. **苦手克服**: 苦手キラー1体の対策を重点学習');
-    advice.push('2. **チーム連携**: 救助タイミングと安全な救助方法を練習');
-    advice.push('3. **効率化**: 発電機修理の効率アップ');
-  } else {
-    advice.push('1. **安定性向上**: 苦手シチュエーションでの立ち回り改善');
-    advice.push('2. **上級テクニック**: 高度なチェイステクニックの習得');
-    advice.push('3. **メンタル強化**: プレッシャー下での冷静な判断力向上');
-  }
+  // 改善提案（自己評価に基づく）
+  advice.push('🎯 今週の改善目標');
+  const improvementSuggestions = generateImprovementSuggestions(stats, selfRatingAnalysis, results);
+  improvementSuggestions.forEach(suggestion => advice.push(suggestion));
   
   // メモ分析
   const memoInsights = analyzeMemosAdvanced(results);
   if (memoInsights) {
-    advice.push('\n📝 **プレイスタイル分析**');
+    advice.push('\n📝 プレイスタイル分析');
     advice.push(memoInsights);
   }
   
   // モチベーション
-  advice.push('\n💪 **応援メッセージ**');
+  advice.push('\n💪 応援メッセージ');
   const motivationMessages = [
     '継続は力なり！毎日の小さな積み重ねが大きな成長に繋がります',
     '失敗も成長の一部。楽しみながらスキルアップしていきましょう！',
@@ -261,6 +244,213 @@ const analyzeMemosAdvanced = (results) => {
   }
   
   return insights.join('\n');
+};
+
+// 自己評価の分析
+const analyzeSelfRating = (results) => {
+  const ratingsWithScores = results
+    .filter(r => r.selfRating && r.selfRating !== '未評価')
+    .map(r => ({
+      rating: r.selfRating,
+      score: getRatingScore(r.selfRating),
+      result: r
+    }));
+
+  if (ratingsWithScores.length === 0) {
+    return {
+      averageRating: '未評価',
+      averageScore: 0,
+      totalRatings: 0,
+      ratingDistribution: {},
+      hasLowRatingEscapes: false,
+      hasHighRatingDeaths: false
+    };
+  }
+
+  const averageScore = ratingsWithScores.reduce((sum, r) => sum + r.score, 0) / ratingsWithScores.length;
+  const averageRating = getScoreRating(averageScore);
+  
+  // 評価分布
+  const ratingDistribution = {};
+  ratingsWithScores.forEach(r => {
+    ratingDistribution[r.rating] = (ratingDistribution[r.rating] || 0) + 1;
+  });
+
+  // 低評価でも脱出した試合（謙虚さ・運の良さ）
+  const hasLowRatingEscapes = ratingsWithScores.some(r => 
+    r.score <= 2 && r.result.survivorStatus?.['自分'] === '逃'
+  );
+
+  // 高評価でも死亡した試合（チーム事情・相手の実力）
+  const hasHighRatingDeaths = ratingsWithScores.some(r => 
+    r.score >= 4 && r.result.survivorStatus?.['自分'] === '死'
+  );
+
+  return {
+    averageRating,
+    averageScore,
+    totalRatings: ratingsWithScores.length,
+    ratingDistribution,
+    hasLowRatingEscapes,
+    hasHighRatingDeaths,
+    ratingsWithScores
+  };
+};
+
+// 自己評価を数値に変換
+const getRatingScore = (rating) => {
+  const scoreMap = {
+    '最悪': 1,
+    '悪い': 2,
+    '普通': 3,
+    '良い': 4,
+    '最高': 5
+  };
+  return scoreMap[rating] || 0;
+};
+
+// 数値を自己評価に変換
+const getScoreRating = (score) => {
+  if (score >= 4.5) return '最高';
+  if (score >= 3.5) return '良い';
+  if (score >= 2.5) return '普通';
+  if (score >= 1.5) return '悪い';
+  return '最悪';
+};
+
+// スキルレベル判定（複合的）
+const determineSkillLevel = (stats, selfRatingAnalysis, results) => {
+  const escapeRate = stats.escapeRate;
+  const avgScore = selfRatingAnalysis.averageScore;
+  
+  // 自己評価が高く、脱出率も高い
+  if (avgScore >= 4 && escapeRate >= 60) {
+    return {
+      level: '自信のある上級者',
+      advice: '自己評価も脱出率も高く、実力に自信を持って良いレベルです！'
+    };
+  }
+  
+  // 自己評価は高いが脱出率が低い（相手が強い、チーム事情）
+  if (avgScore >= 4 && escapeRate < 40) {
+    return {
+      level: '実力派プレイヤー',
+      advice: '個人プレイは優秀ですが、相手やチーム事情で苦戦することが多いようです。環境要因に左右されにくい立ち回りを意識してみましょう。'
+    };
+  }
+  
+  // 自己評価は低いが脱出率が高い（謙虚、運が良い）
+  if (avgScore <= 2.5 && escapeRate >= 50) {
+    return {
+      level: '謙虚な実力者',
+      advice: '謙虚な自己評価ですが、結果はしっかり出ています。もう少し自分に自信を持って良いかもしれません！'
+    };
+  }
+  
+  // 自己評価と脱出率が両方普通
+  if (avgScore >= 2.5 && avgScore <= 3.5 && escapeRate >= 30 && escapeRate <= 60) {
+    return {
+      level: 'バランス型プレイヤー',
+      advice: '自己分析力があり、着実に成長しています。継続的な練習で更なる向上が期待できます。'
+    };
+  }
+  
+  // 自己評価も脱出率も低い
+  if (avgScore <= 2.5 && escapeRate < 30) {
+    return {
+      level: '成長中プレイヤー',
+      advice: '現在は練習段階ですが、しっかりと自己分析ができています。基礎から着実に積み上げていきましょう。'
+    };
+  }
+  
+  // その他（自己評価なしなど）
+  if (escapeRate >= 50) {
+    return {
+      level: '安定プレイヤー',
+      advice: '良好な成績を維持しています。自己評価も記録してより詳細な分析をしてみませんか？'
+    };
+  } else {
+    return {
+      level: '学習中プレイヤー',
+      advice: '経験を積みながら成長中です。試合後の自己評価も記録してみると良いでしょう。'
+    };
+  }
+};
+
+// 自己評価に基づく褒めポイント
+const generatePraiseBasedOnSelfRating = (selfRatingAnalysis, results) => {
+  const praise = [];
+  
+  if (selfRatingAnalysis.totalRatings === 0) {
+    return ['自己分析の習慣をつけると、更なる成長が期待できます'];
+  }
+  
+  // 自己評価をきちんと記録している
+  const ratingPercentage = (selfRatingAnalysis.totalRatings / results.length * 100).toFixed(0);
+  if (ratingPercentage >= 70) {
+    praise.push(`自己評価を${ratingPercentage}%の試合で記録しており、分析意識が高い`);
+  }
+  
+  // 謙虚な姿勢
+  if (selfRatingAnalysis.hasLowRatingEscapes) {
+    praise.push('低評価でも脱出した試合があり、謙虚な自己分析ができている');
+  }
+  
+  // 現実的な評価
+  if (selfRatingAnalysis.hasHighRatingDeaths) {
+    praise.push('高評価でも死亡した試合を冷静に分析でき、チーム事情や相手の実力を理解している');
+  }
+  
+  // 安定した自己評価
+  const goodRatings = Object.entries(selfRatingAnalysis.ratingDistribution)
+    .filter(([rating]) => rating === '良い' || rating === '最高')
+    .reduce((sum, [, count]) => sum + count, 0);
+  
+  if (goodRatings >= selfRatingAnalysis.totalRatings * 0.4) {
+    praise.push('自分のプレイに対して適切な自信を持てている');
+  }
+  
+  // 改善意識
+  const badRatings = Object.entries(selfRatingAnalysis.ratingDistribution)
+    .filter(([rating]) => rating === '悪い' || rating === '最悪')
+    .reduce((sum, [, count]) => sum + count, 0);
+  
+  if (badRatings > 0) {
+    praise.push('自分の課題を正しく認識し、改善に向けた意識がある');
+  }
+  
+  return praise;
+};
+
+// 改善提案（自己評価ベース）
+const generateImprovementSuggestions = (stats, selfRatingAnalysis, results) => {
+  const suggestions = [];
+  
+  // 自己評価の記録を推奨
+  if (selfRatingAnalysis.totalRatings < results.length * 0.5) {
+    suggestions.push('1. 自己評価の記録: 試合後の振り返りを習慣化して成長を可視化');
+  }
+  
+  // 自己評価と結果のギャップ分析
+  if (selfRatingAnalysis.hasHighRatingDeaths && stats.escapeRate < 40) {
+    suggestions.push('2. チーム連携強化: 個人プレイは良いので、チーム状況の把握と連携を重視');
+  }
+  
+  // 自信向上
+  if (selfRatingAnalysis.averageScore < 3 && stats.escapeRate >= 40) {
+    suggestions.push('3. 自信の向上: 結果が出ているので、もう少し自分のプレイを評価してみましょう');
+  }
+  
+  // 基本的な改善提案
+  if (stats.escapeRate < 30) {
+    suggestions.push('4. 基礎スキル: チェイステクニックとマップ知識の向上に集中');
+  } else if (stats.escapeRate < 50) {
+    suggestions.push('4. 応用技術: 状況判断と立ち回りの最適化を練習');
+  } else {
+    suggestions.push('4. 上級技術: 更なる安定性と一歩先の読みを身につける');
+  }
+  
+  return suggestions;
 };
 
 const AIAnalysis = ({ results }) => {
