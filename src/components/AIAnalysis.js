@@ -2,243 +2,237 @@
 import React from 'react';
 import { colors } from '../styles/commonStyles';
 
-// キラー別対策（事実ベース）
-const KILLER_WEAKNESS = {
-  'トラッパー': '罠設置パターンの学習不足',
-  'レイス': '透明化解除タイミングの読み不足',
-  'ヒルビリー': '直線チェーンソー回避の基礎不足',
-  'ナース': 'ブリンク距離予測の経験不足',
-  'ハグ': 'クローチ移動の判断ミス',
-  'ドクター': '治療タイミングの最適化不足',
-  'ハントレス': '斧軌道の読み不足',
-  'スピリット': 'フェイズ中の位置予測不足',
-  'ゴーストフェイス': 'ストーカー阻止の反応遅れ',
-  '鬼': '血玉回避の意識不足',
-  'エクセキューショナー': '溝回避の判断遅れ',
-  'ブライト': 'バウンス軌道の理解不足'
-};
-
-// 戦績分析（事実のみ）
-const generateCriticalAnalysis = (results) => {
+// 戦績分析（知りたい情報のみ）
+const generateFocusedAnalysis = (results) => {
   if (!results || results.length === 0) {
     return { advice: ['データ不足'], stats: null };
   }
 
-  const stats = calculateStats(results);
+  const stats = calculateBasicStats(results);
   const analysis = [];
 
-  // レベル判定（厳格）
-  const level = determineActualLevel(stats, results);
-  analysis.push(`【実力判定】${level.name}`);
-  analysis.push(`根拠: ${level.reason}`);
-  analysis.push('');
+  // 基本数値
+  analysis.push(`脱出率: ${stats.escapeRate}% (${stats.totalEscapes}/${stats.totalGames})\n`);
 
-  // 数値事実
-  analysis.push(`【数値】脱出率${stats.escapeRate}% (${stats.totalEscapes}/${stats.totalGames})`);
-  
-  // 最近の変化（事実のみ）
-  if (results.length >= 6) {
-    const trend = analyzeRecentTrend(results);
-    if (trend) analysis.push(`最近の変化: ${trend}`);
-  }
-  analysis.push('');
-
-  // 最大の弱点（データベース）
-  const weakness = findCriticalWeakness(stats, results);
-  if (weakness) {
-    analysis.push(`【最大の弱点】${weakness.issue}`);
-    analysis.push(`対策: ${weakness.solution}`);
+  // キラー分析
+  const killerAnalysis = analyzeKillers(stats.killerStats);
+  if (killerAnalysis.weak.length > 0) {
+    analysis.push('【苦手キラー】');
+    killerAnalysis.weak.forEach(k => {
+      analysis.push(`${k.killer}: ${k.rate}% (${k.games}試合)`);
+    });
     analysis.push('');
   }
 
-  // 改善の緊急度順
-  const priorities = getPriorities(stats, results);
-  analysis.push('【優先改善順】');
-  priorities.forEach((p, i) => analysis.push(`${i+1}. ${p}`));
+  if (killerAnalysis.strong.length > 0) {
+    analysis.push('【得意キラー】');
+    killerAnalysis.strong.forEach(k => {
+      analysis.push(`${k.killer}: ${k.rate}% (${k.games}試合)`);
+    });
+    analysis.push('');
+  }
+
+  // ステージ分析
+  const stageAnalysis = analyzeStages(results);
+  if (stageAnalysis.weak.length > 0) {
+    analysis.push('【苦手ステージ】');
+    stageAnalysis.weak.forEach(s => {
+      analysis.push(`${s.stage}: ${s.rate}% (${s.games}試合)`);
+    });
+    analysis.push('');
+  }
+
+  if (stageAnalysis.strong.length > 0) {
+    analysis.push('【得意ステージ】');
+    stageAnalysis.strong.forEach(s => {
+      analysis.push(`${s.stage}: ${s.rate}% (${s.games}試合)`);
+    });
+    analysis.push('');
+  }
+
+  // マップ理解度判定
+  const mapUnderstanding = analyzeMapUnderstanding(stageAnalysis.all);
+  if (mapUnderstanding) {
+    analysis.push(`【マップ理解】${mapUnderstanding}`);
+    analysis.push('');
+  }
+
+  // メモ分析
+  const memoInsights = analyzeMemos(results);
+  if (memoInsights.length > 0) {
+    analysis.push('【メモから判明】');
+    memoInsights.forEach(insight => analysis.push(`・${insight}`));
+  }
 
   return { advice: analysis, stats };
 };
 
-// 統計計算
-const calculateStats = (results) => {
+// 基本統計
+const calculateBasicStats = (results) => {
   const stats = {
     totalGames: results.length,
     totalEscapes: 0,
     escapeRate: 0,
     killerStats: {},
-    selfRatingAvg: 0,
-    consistencyRate: 0
+    stageStats: {}
   };
 
-  let ratingSum = 0;
-  let consistent = 0;
-
   results.forEach(result => {
-    const myStatus = result.survivorStatus?.['自分'];
-    const escaped = myStatus === '逃';
-    
+    const escaped = result.survivorStatus?.['自分'] === '逃';
     if (escaped) stats.totalEscapes++;
 
-    // キラー別統計
+    // キラー別
     if (!stats.killerStats[result.killer]) {
       stats.killerStats[result.killer] = { games: 0, escapes: 0 };
     }
     stats.killerStats[result.killer].games++;
     if (escaped) stats.killerStats[result.killer].escapes++;
 
-    // 自己評価
-    const rating = getRatingScore(result.selfRating || '普通');
-    ratingSum += rating;
-
-    // 一貫性（評価と結果の一致）
-    const goodRating = rating >= 4;
-    if ((goodRating && escaped) || (!goodRating && !escaped)) {
-      consistent++;
+    // ステージ別
+    if (result.stage) {
+      if (!stats.stageStats[result.stage]) {
+        stats.stageStats[result.stage] = { games: 0, escapes: 0 };
+      }
+      stats.stageStats[result.stage].games++;
+      if (escaped) stats.stageStats[result.stage].escapes++;
     }
   });
 
   stats.escapeRate = parseFloat((stats.totalEscapes / stats.totalGames * 100).toFixed(1));
-  stats.selfRatingAvg = (ratingSum / stats.totalGames).toFixed(1);
-  stats.consistencyRate = parseFloat((consistent / stats.totalGames * 100).toFixed(1));
-
   return stats;
 };
 
-// 自己評価を数値化
-const getRatingScore = (rating) => {
-  const map = { '最悪': 1, '悪い': 2, '普通': 3, '良い': 4, '最高': 5 };
-  return map[rating] || 3;
-};
-
-// 実力判定（厳格基準）
-const determineActualLevel = (stats, results) => {
-  const rate = stats.escapeRate;
-  const avg = parseFloat(stats.selfRatingAvg);
-  const consistency = stats.consistencyRate;
-
-  // データ不足
-  if (stats.totalGames < 5) {
-    return { name: 'データ不足', reason: '試合数5未満' };
-  }
-
-  // 自己評価と結果の乖離チェック
-  const overconfident = avg >= 4.0 && rate < 40;
-  const underconfident = avg <= 2.5 && rate >= 60;
-
-  if (overconfident) {
-    return { name: '過大評価型', reason: `自己評価${avg}だが脱出率${rate}%` };
-  }
-
-  if (underconfident) {
-    return { name: '過小評価型', reason: `自己評価${avg}だが脱出率${rate}%` };
-  }
-
-  // 実力判定
-  if (rate >= 70 && consistency >= 70) {
-    return { name: '上級者', reason: `脱出率${rate}%、自己分析精度${consistency}%` };
-  } else if (rate >= 50 && consistency >= 60) {
-    return { name: '中級者', reason: `脱出率${rate}%、分析精度${consistency}%` };
-  } else if (rate >= 30) {
-    return { name: '初中級者', reason: `脱出率${rate}%` };
-  } else {
-    return { name: '初心者', reason: `脱出率${rate}%` };
-  }
-};
-
-// 最近の傾向分析
-const analyzeRecentTrend = (results) => {
-  const recent3 = results.slice(0, 3);
-  const older3 = results.slice(3, 6);
-
-  const recentEscapes = recent3.filter(r => r.survivorStatus?.['自分'] === '逃').length;
-  const olderEscapes = older3.filter(r => r.survivorStatus?.['自分'] === '逃').length;
-
-  const recentRate = (recentEscapes / 3 * 100).toFixed(0);
-  const olderRate = (olderEscapes / 3 * 100).toFixed(0);
-
-  const diff = recentRate - olderRate;
-  
-  if (diff >= 34) return `大幅向上 (${olderRate}% → ${recentRate}%)`;
-  if (diff <= -34) return `大幅悪化 (${olderRate}% → ${recentRate}%)`;
-  if (Math.abs(diff) <= 17) return `安定 (${recentRate}%)`;
-  
-  return null;
-};
-
-// 最大の弱点特定
-const findCriticalWeakness = (stats, results) => {
-  // 1. 特定キラーへの極端な弱さ
-  const killerProblems = Object.entries(stats.killerStats)
-    .filter(([_, data]) => data.games >= 2)
+// キラー分析
+const analyzeKillers = (killerStats) => {
+  const killers = Object.entries(killerStats)
+    .filter(([_, data]) => data.games >= 2) // 2試合以上のみ
     .map(([killer, data]) => ({
       killer,
-      rate: (data.escapes / data.games * 100).toFixed(0),
+      rate: parseFloat((data.escapes / data.games * 100).toFixed(1)),
       games: data.games
-    }))
-    .filter(k => k.rate <= 25);
+    }));
 
-  if (killerProblems.length > 0) {
-    const worst = killerProblems.sort((a, b) => a.rate - b.rate)[0];
-    return {
-      issue: `${worst.killer}に極端に弱い (${worst.rate}%, ${worst.games}試合)`,
-      solution: KILLER_WEAKNESS[worst.killer] || '基本対策の学習'
-    };
-  }
+  const weak = killers
+    .filter(k => k.rate <= 30)
+    .sort((a, b) => a.rate - b.rate)
+    .slice(0, 3); // 最大3つ
 
-  // 2. 自己評価の問題
-  if (stats.consistencyRate < 50) {
-    return {
-      issue: `自己分析能力不足 (一致率${stats.consistencyRate}%)`,
-      solution: '試合中の判断と結果の照合を徹底'
-    };
-  }
+  const strong = killers
+    .filter(k => k.rate >= 70)
+    .sort((a, b) => b.rate - a.rate)
+    .slice(0, 3); // 最大3つ
 
-  // 3. 全体的な脱出率の問題
-  if (stats.escapeRate < 25) {
-    return {
-      issue: '基礎スキル不足',
-      solution: 'チェイス・発電機・救助の基本練習'
-    };
-  }
-
-  return null;
+  return { weak, strong };
 };
 
-// 改善優先度
-const getPriorities = (stats, results) => {
-  const priorities = [];
+// ステージ分析
+const analyzeStages = (results) => {
+  const stageStats = {};
 
-  // 緊急度順
-  if (stats.escapeRate < 20) {
-    priorities.push('基礎スキル習得（チェイス・発電機・救助）');
+  results.forEach(result => {
+    if (!result.stage) return;
+    
+    const escaped = result.survivorStatus?.['自分'] === '逃';
+    
+    if (!stageStats[result.stage]) {
+      stageStats[result.stage] = { games: 0, escapes: 0 };
+    }
+    stageStats[result.stage].games++;
+    if (escaped) stageStats[result.stage].escapes++;
+  });
+
+  const stages = Object.entries(stageStats)
+    .filter(([_, data]) => data.games >= 2) // 2試合以上のみ
+    .map(([stage, data]) => ({
+      stage,
+      rate: parseFloat((data.escapes / data.games * 100).toFixed(1)),
+      games: data.games
+    }));
+
+  const weak = stages
+    .filter(s => s.rate <= 30)
+    .sort((a, b) => a.rate - b.rate)
+    .slice(0, 3);
+
+  const strong = stages
+    .filter(s => s.rate >= 70)
+    .sort((a, b) => b.rate - a.rate)
+    .slice(0, 3);
+
+  return { weak, strong, all: stages };
+};
+
+// マップ理解度判定
+const analyzeMapUnderstanding = (allStages) => {
+  if (allStages.length < 3) return null;
+
+  // 脱出率の標準偏差を計算
+  const rates = allStages.map(s => s.rate);
+  const avg = rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+  const variance = rates.reduce((sum, rate) => sum + Math.pow(rate - avg, 2), 0) / rates.length;
+  const stdDev = Math.sqrt(variance);
+
+  if (stdDev >= 25) {
+    return 'マップ格差大（特定マップへの偏りあり）';
+  } else if (stdDev <= 10) {
+    return 'マップ理解度安定';
+  } else {
+    return 'マップ理解度は普通';
+  }
+};
+
+// メモ分析
+const analyzeMemos = (results) => {
+  const memos = results
+    .map(r => r.memo || '')
+    .filter(m => m.trim().length > 0);
+
+  if (memos.length === 0) return [];
+
+  const insights = [];
+  const allText = memos.join(' ').toLowerCase();
+
+  // 問題意識のキーワード
+  const problemKeywords = {
+    'チェイス': 'チェイス技術を課題視している',
+    '発電機': '発電機効率を意識している',
+    'キャンプ': 'キャンプ対策で悩んでいる',
+    'トンネル': 'トンネル対策が課題',
+    '救助': '救助タイミングを重視している',
+    'ミス': '自分のミスを分析している',
+    '下手': '自己評価が厳しい',
+    '運': '運要素を感じている',
+    'ラグ': '通信環境を気にしている',
+    'パーク': 'ビルド研究をしている'
+  };
+
+  Object.entries(problemKeywords).forEach(([keyword, meaning]) => {
+    if (allText.includes(keyword)) {
+      insights.push(meaning);
+    }
+  });
+
+  // メモ記録率
+  const memoRate = (memos.length / results.length * 100).toFixed(0);
+  if (memos.length >= results.length * 0.7) {
+    insights.push(`振り返り習慣がある（${memoRate}%記録）`);
+  } else if (memos.length <= results.length * 0.3) {
+    insights.push(`メモが少ない（${memoRate}%のみ記録）`);
   }
 
-  if (stats.consistencyRate < 40) {
-    priorities.push('自己評価精度の向上（現実認識）');
+  // 文字数による分析の深さ
+  const avgLength = memos.reduce((sum, memo) => sum + memo.length, 0) / memos.length;
+  if (avgLength >= 20) {
+    insights.push('詳細にメモを記録（分析志向）');
+  } else if (avgLength <= 5) {
+    insights.push('簡潔なメモ（要点のみ記録）');
   }
 
-  // 特定キラー対策
-  const weakKillers = Object.entries(stats.killerStats)
-    .filter(([_, data]) => data.games >= 2 && (data.escapes / data.games) < 0.3)
-    .sort(([_, a], [__, b]) => (a.escapes / a.games) - (b.escapes / b.games));
-
-  if (weakKillers.length > 0) {
-    priorities.push(`${weakKillers[0][0]}対策の重点学習`);
-  }
-
-  if (stats.escapeRate >= 30 && stats.escapeRate < 50) {
-    priorities.push('中級技術の習得（状況判断・立ち回り）');
-  }
-
-  if (stats.escapeRate >= 50) {
-    priorities.push('安定性向上（メンタル・集中力）');
-  }
-
-  return priorities.length > 0 ? priorities : ['継続的な経験積み重ね'];
+  return insights;
 };
 
 const AIAnalysis = ({ results }) => {
-  const analysis = generateCriticalAnalysis(results);
+  const analysis = generateFocusedAnalysis(results);
 
   const analysisStyles = {
     container: {
@@ -266,10 +260,10 @@ const AIAnalysis = ({ results }) => {
       borderRadius: '6px'
     },
     adviceItem: {
-      marginBottom: '8px',
-      padding: '6px',
+      marginBottom: '6px',
+      padding: '4px',
       borderLeft: `3px solid ${colors.primary}`,
-      paddingLeft: '10px',
+      paddingLeft: '8px',
       lineHeight: '1.3',
       fontSize: '0.95rem'
     }
@@ -278,17 +272,8 @@ const AIAnalysis = ({ results }) => {
   return (
     <div style={analysisStyles.container}>
       <h2 style={analysisStyles.title}>📊 戦績分析</h2>
-      
-      {analysis.stats && (
-        <div style={analysisStyles.statsBox}>
-          <h3 style={{ color: colors.primary, marginTop: 0 }}>基本データ</h3>
-          <p>試合数: {analysis.stats.totalGames} | 脱出: {analysis.stats.totalEscapes}回 | 脱出率: {analysis.stats.escapeRate}%</p>
-          <p>自己評価平均: {analysis.stats.selfRatingAvg} | 評価一致率: {analysis.stats.consistencyRate}%</p>
-        </div>
-      )}
 
       <div style={analysisStyles.adviceList}>
-        <h3 style={{ color: colors.primary, marginTop: 0 }}>分析結果</h3>
         {analysis.advice.map((advice, index) => (
           <div key={index} style={analysisStyles.adviceItem}>
             {advice}
