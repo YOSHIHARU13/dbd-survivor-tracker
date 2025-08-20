@@ -98,12 +98,7 @@ const StatsDisplay = ({
         全データ削除
       </button>
 
-      {/* AI分析コンポーネントを追加 */}
-      {filteredResults.length > 0 && (
-        <AIAnalysis results={filteredResults} />
-      )}
-
-      {/* AI分析コンポーネントを追加 */}
+      {/* AI分析コンポーネント（1つだけ） */}
       {filteredResults.length > 0 && (
         <AIAnalysis results={filteredResults} />
       )}
