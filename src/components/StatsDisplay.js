@@ -42,9 +42,17 @@ const StatsDisplay = ({
   const dateStats = {};
   filteredResults.forEach((r) => {
     if (!dateStats[r.battleDate]) {
-      dateStats[r.battleDate] = { totalGames: 0, totalEscapes: 0, perPerson: {} };
+      dateStats[r.battleDate] = { 
+        totalGames: 0, 
+        totalEscapes: 0, 
+        perPerson: {}, 
+        games: [] // 各試合の詳細を保存
+      };
     }
     dateStats[r.battleDate].totalGames++;
+    
+    // 試合詳細を保存
+    dateStats[r.battleDate].games.push(r);
     
     Object.keys(r.survivorStatus).forEach((person) => {
       let actualName = person;
@@ -105,7 +113,65 @@ const StatsDisplay = ({
 
       {showStats && (
         <>
-          <h2 style={{ color: colors.primary, marginTop: "30px" }}>■ キラー別 脱出率</h2>
+          {/* 戦績詳細一覧（新規追加） */}
+          <h2 style={{ color: colors.primary, marginTop: "30px" }}>■ 戦績詳細一覧</h2>
+          {filteredResults.length === 0 ? (
+            <p>試合データがありません</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>日付</th>
+                    <th style={styles.th}>キラー</th>
+                    <th style={styles.th}>レベル</th>
+                    <th style={styles.th}>ステージ</th>
+                    <th style={styles.th}>自分</th>
+                    <th style={styles.th}>自己評価</th>
+                    <th style={styles.th}>チーム脱出</th>
+                    <th style={styles.th}>メモ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredResults.map((result, index) => {
+                    const myStatus = result.survivorStatus?.['自分'] || '不明';
+                    const teamEscapes = Object.values(result.survivorStatus || {}).filter(s => s === '逃').length;
+                    
+                    return (
+                      <tr key={index} style={{
+                        backgroundColor: myStatus === '逃' ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)'
+                      }}>
+                        <td style={styles.td}>{result.battleDate}</td>
+                        <td style={styles.td}>{result.killer}</td>
+                        <td style={styles.td}>{result.killerLevel || '-'}</td>
+                        <td style={styles.td}>{result.stage}</td>
+                        <td style={{
+                          ...styles.td,
+                          fontWeight: 'bold',
+                          color: myStatus === '逃' ? '#4CAF50' : '#F44336'
+                        }}>
+                          {myStatus === '逃' ? '🟢 逃' : '🔴 死'}
+                        </td>
+                        <td style={styles.td}>{result.selfRating || '-'}</td>
+                        <td style={styles.td}>{teamEscapes}/4人</td>
+                        <td style={{
+                          ...styles.td,
+                          maxWidth: '200px',
+                          fontSize: '0.9rem',
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap'
+                        }}>
+                          {result.memo || '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <h2 style={{ color: colors.primary, marginTop: "40px" }}>■ キラー別 脱出率</h2>
           <table style={styles.table}>
             <thead>
               <tr>
