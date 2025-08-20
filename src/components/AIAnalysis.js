@@ -82,19 +82,23 @@ const analyzeResults = (results) => {
   });
 
   // 脱出率計算
-  analysis.stats.escapeRate = (analysis.stats.totalEscapes / analysis.stats.totalGames * 100).toFixed(1);
+  analysis.stats.escapeRate = parseFloat((analysis.stats.totalEscapes / analysis.stats.totalGames * 100).toFixed(1));
 
   // 苦手・得意キラー特定
   Object.entries(analysis.stats.killerStats).forEach(([killer, stats]) => {
     const winRate = (stats.escapes / stats.games * 100);
     if (stats.games >= 2) { // 2試合以上のデータがある場合のみ
       if (winRate < 30) {
-        analysis.stats.weakKillers.push({ killer, winRate: winRate.toFixed(1), games: stats.games });
+        analysis.stats.weakKillers.push({ killer, winRate: parseFloat(winRate.toFixed(1)), games: stats.games });
       } else if (winRate > 70) {
-        analysis.stats.strongKillers.push({ killer, winRate: winRate.toFixed(1), games: stats.games });
+        analysis.stats.strongKillers.push({ killer, winRate: parseFloat(winRate.toFixed(1)), games: stats.games });
       }
     }
   });
+
+  // ソート（勝率の低い順/高い順）
+  analysis.stats.weakKillers.sort((a, b) => a.winRate - b.winRate);
+  analysis.stats.strongKillers.sort((a, b) => b.winRate - a.winRate);
 
   // アドバイス生成
   // 全体的な脱出率
@@ -155,12 +159,19 @@ const AIAnalysis = ({ results }) => {
   // AI分析を実行
   const runAIAnalysis = async () => {
     console.log('🔍 AI分析開始 - 戦績数:', results.length);
-    console.log('🔍 分析データ:', analysis);
     
     setIsLoadingAI(true);
     try {
       console.log('🤖 AIサービス呼び出し中...');
-      const aiResult = await aiService.generateAdvancedAnalysis(analysis, results);
+      
+      // ✅ 修正：正しい形式でデータを渡す
+      const basicAnalysis = {
+        stats: analysis.stats
+      };
+      
+      console.log('📊 AIに渡すデータ:', basicAnalysis);
+      
+      const aiResult = await aiService.generateAdvancedAnalysis(basicAnalysis, results);
       console.log('✅ AI応答:', aiResult);
       
       setAiAnalysis(aiResult);
@@ -269,7 +280,7 @@ const AIAnalysis = ({ results }) => {
               🤖 AI詳細分析
               {aiAnalysis.source && (
                 <span style={{ fontSize: '0.8rem', color: colors.textMuted, marginLeft: '10px' }}>
-                  by {aiAnalysis.source}
+                  by {aiAnalysis.source} | {aiAnalysis.cost || '完全無料'}
                 </span>
               )}
             </h4>
@@ -288,7 +299,10 @@ const AIAnalysis = ({ results }) => {
                   ⚠️ {aiAnalysis.error}
                 </div>
                 {aiAnalysis.fallback && (
-                  <div style={analysisStyles.adviceItem}>
+                  <div style={{
+                    ...analysisStyles.adviceItem,
+                    whiteSpace: 'pre-wrap'
+                  }}>
                     {aiAnalysis.fallback}
                   </div>
                 )}
