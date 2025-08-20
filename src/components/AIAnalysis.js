@@ -1,7 +1,6 @@
 // components/AIAnalysis.js
-import React, { useState } from 'react';
+import React from 'react';
 import { colors } from '../styles/commonStyles';
-import { aiService } from '../services/aiService';
 
 // DBDキラー別のアドバイス
 const KILLER_ADVICE = {
@@ -40,8 +39,8 @@ const KILLER_ADVICE = {
   'アニマトロニック': 'ジャンプスケア攻撃のタイミングを読み、電力システムの管理に注意してください。'
 };
 
-// 分析ロジック
-const analyzeResults = (results) => {
+// 高度な分析ロジック（AI風）
+const generateAdvancedAnalysis = (results) => {
   if (!results || results.length === 0) {
     return {
       advice: ['戦績データが不足しています。もう少し試合を重ねてから分析してみてください。'],
@@ -49,145 +48,223 @@ const analyzeResults = (results) => {
     };
   }
 
-  const analysis = {
-    advice: [],
-    stats: {
-      totalGames: results.length,
-      totalEscapes: 0,
-      escapeRate: 0,
-      killerStats: {},
-      weakKillers: [],
-      strongKillers: []
-    }
+  const stats = {
+    totalGames: results.length,
+    totalEscapes: 0,
+    escapeRate: 0,
+    killerStats: {},
+    weakKillers: [],
+    strongKillers: []
   };
 
-  // キラー別統計
+  // キラー別統計計算
   results.forEach(result => {
     if (!result.survivorStatus) return;
     
     const myStatus = result.survivorStatus['自分'] || 
-                    Object.values(result.survivorStatus)[0]; // フォールバック
+                    Object.values(result.survivorStatus)[0];
     
     if (myStatus === '逃') {
-      analysis.stats.totalEscapes++;
+      stats.totalEscapes++;
     }
 
-    if (!analysis.stats.killerStats[result.killer]) {
-      analysis.stats.killerStats[result.killer] = { games: 0, escapes: 0 };
+    if (!stats.killerStats[result.killer]) {
+      stats.killerStats[result.killer] = { games: 0, escapes: 0 };
     }
-    analysis.stats.killerStats[result.killer].games++;
+    stats.killerStats[result.killer].games++;
     if (myStatus === '逃') {
-      analysis.stats.killerStats[result.killer].escapes++;
+      stats.killerStats[result.killer].escapes++;
     }
   });
 
   // 脱出率計算
-  analysis.stats.escapeRate = parseFloat((analysis.stats.totalEscapes / analysis.stats.totalGames * 100).toFixed(1));
+  stats.escapeRate = parseFloat((stats.totalEscapes / stats.totalGames * 100).toFixed(1));
 
   // 苦手・得意キラー特定
-  Object.entries(analysis.stats.killerStats).forEach(([killer, stats]) => {
-    const winRate = (stats.escapes / stats.games * 100);
-    if (stats.games >= 2) { // 2試合以上のデータがある場合のみ
+  Object.entries(stats.killerStats).forEach(([killer, killerStats]) => {
+    const winRate = (killerStats.escapes / killerStats.games * 100);
+    if (killerStats.games >= 2) {
       if (winRate < 30) {
-        analysis.stats.weakKillers.push({ killer, winRate: parseFloat(winRate.toFixed(1)), games: stats.games });
+        stats.weakKillers.push({ 
+          killer, 
+          winRate: parseFloat(winRate.toFixed(1)), 
+          games: killerStats.games 
+        });
       } else if (winRate > 70) {
-        analysis.stats.strongKillers.push({ killer, winRate: parseFloat(winRate.toFixed(1)), games: stats.games });
+        stats.strongKillers.push({ 
+          killer, 
+          winRate: parseFloat(winRate.toFixed(1)), 
+          games: killerStats.games 
+        });
       }
     }
   });
 
-  // ソート（勝率の低い順/高い順）
-  analysis.stats.weakKillers.sort((a, b) => a.winRate - b.winRate);
-  analysis.stats.strongKillers.sort((a, b) => b.winRate - a.winRate);
+  // ソート
+  stats.weakKillers.sort((a, b) => a.winRate - b.winRate);
+  stats.strongKillers.sort((a, b) => b.winRate - a.winRate);
 
-  // アドバイス生成
-  // 全体的な脱出率
-  if (analysis.stats.escapeRate < 25) {
-    analysis.advice.push('🔴 脱出率が低めです。基本的なチェイステクニックの練習をお勧めします。');
-  } else if (analysis.stats.escapeRate < 50) {
-    analysis.advice.push('🟡 脱出率は平均的です。状況判断を磨いてさらなる向上を目指しましょう。');
+  // AI風の詳細分析を生成
+  const aiAdvice = generateAIStyleAdvice(stats, results);
+
+  return { stats, advice: aiAdvice };
+};
+
+// AI風のアドバイス生成
+const generateAIStyleAdvice = (stats, results) => {
+  const advice = [];
+  
+  // AI分析ヘッダー
+  advice.push('🤖 【AI戦績分析結果】\n');
+  
+  // スキルレベル判定
+  let skillLevel, mainAdvice;
+  if (stats.escapeRate >= 70) {
+    skillLevel = '上級者';
+    mainAdvice = 'あなたの実力は既に上級者レベルです！安定性の維持と新しい挑戦を心がけましょう。';
+  } else if (stats.escapeRate >= 50) {
+    skillLevel = '中上級者';
+    mainAdvice = '中上級者として順調に成長中！苦手分野を克服すれば更なる飛躍が期待できます。';
+  } else if (stats.escapeRate >= 30) {
+    skillLevel = '中級者';
+    mainAdvice = '中級者として基礎は身についています。特定のスキルに集中して練習しましょう。';
+  } else if (stats.escapeRate >= 15) {
+    skillLevel = '初中級者';
+    mainAdvice = '基本は理解されています。チェイスと状況判断を重点的に練習しましょう。';
   } else {
-    analysis.advice.push('🟢 素晴らしい脱出率です！この調子で頑張ってください。');
+    skillLevel = '初心者';
+    mainAdvice = 'まだ始めたばかりですね！基礎からしっかり積み上げていきましょう。';
   }
-
-  // 苦手キラーへのアドバイス
-  analysis.stats.weakKillers.forEach(({ killer, winRate, games }) => {
-    analysis.advice.push(
-      `❌ ${killer}が苦手のようです（脱出率${winRate}%、${games}試合）`
-    );
-    if (KILLER_ADVICE[killer]) {
-      analysis.advice.push(`💡 ${killer}対策: ${KILLER_ADVICE[killer]}`);
+  
+  advice.push(`📊 **スキルレベル**: ${skillLevel} (脱出率 ${stats.escapeRate}%)`);
+  advice.push(`💬 **総評**: ${mainAdvice}\n`);
+  
+  // 詳細分析
+  advice.push('🔍 **詳細分析**');
+  
+  // 試合数による分析
+  if (stats.totalGames < 5) {
+    advice.push('・まだデータが少ないため、もう少しプレイして傾向を把握しましょう');
+  } else if (stats.totalGames < 20) {
+    advice.push('・適度な試合数でパターンが見えてきています');
+  } else if (stats.totalGames < 50) {
+    advice.push('・十分な試合数があり、信頼性の高い分析が可能です');
+  } else {
+    advice.push('・豊富な経験値！データに基づいた的確な改善が可能です');
+  }
+  
+  // 最近の傾向分析
+  if (results.length >= 5) {
+    const recent5 = results.slice(0, 5);
+    const recentEscapes = recent5.filter(r => {
+      const status = r.survivorStatus?.['自分'] || Object.values(r.survivorStatus || {})[0];
+      return status === '逃';
+    }).length;
+    const recentRate = (recentEscapes / 5 * 100).toFixed(0);
+    
+    if (recentRate > stats.escapeRate + 10) {
+      advice.push(`・最近調子が良い！(直近5試合: ${recentRate}%) この調子で継続しましょう`);
+    } else if (recentRate < stats.escapeRate - 10) {
+      advice.push(`・最近少し苦戦中 (直近5試合: ${recentRate}%) 基本に戻って練習してみましょう`);
+    } else {
+      advice.push(`・安定したパフォーマンス (直近5試合: ${recentRate}%) 良いペースです`);
     }
-  });
-
-  // 得意キラー
-  if (analysis.stats.strongKillers.length > 0) {
-    const strongKillerNames = analysis.stats.strongKillers.map(k => k.killer).join('、');
-    analysis.advice.push(`✅ ${strongKillerNames}は得意のようです。この立ち回りを他のキラーでも活かしてみましょう。`);
   }
+  
+  // キラー対策
+  advice.push('\n🎭 **キラー対策**');
+  
+  if (stats.weakKillers.length > 0) {
+    const weakest = stats.weakKillers[0];
+    advice.push(`・**最苦手**: ${weakest.killer} (脱出率${weakest.winRate}%)`);
+    
+    if (KILLER_ADVICE[weakest.killer]) {
+      advice.push(`  💡 ${KILLER_ADVICE[weakest.killer]}`);
+    }
+    
+    if (stats.weakKillers.length > 1) {
+      const second = stats.weakKillers[1];
+      advice.push(`・**苦手**: ${second.killer} (脱出率${second.winRate}%)`);
+    }
+  } else {
+    advice.push('・特に苦手なキラーは見当たりません。バランス良く対応できています');
+  }
+  
+  if (stats.strongKillers.length > 0) {
+    const strongest = stats.strongKillers[0];
+    advice.push(`・**得意**: ${strongest.killer} (脱出率${strongest.winRate}%) この立ち回りを他でも活用！`);
+  }
+  
+  // 改善提案
+  advice.push('\n🎯 **今週の改善目標**');
+  
+  if (stats.escapeRate < 25) {
+    advice.push('1. **基礎練習**: チェイスの基本（板・窓の使い方）をマスター');
+    advice.push('2. **マップ学習**: よく使われるマップ3つの地形を覚える');
+    advice.push('3. **パーク研究**: 初心者向けパーク構成を試す');
+  } else if (stats.escapeRate < 50) {
+    advice.push('1. **苦手克服**: 苦手キラー1体の対策を重点学習');
+    advice.push('2. **チーム連携**: 救助タイミングと安全な救助方法を練習');
+    advice.push('3. **効率化**: 発電機修理の効率アップ');
+  } else {
+    advice.push('1. **安定性向上**: 苦手シチュエーションでの立ち回り改善');
+    advice.push('2. **上級テクニック**: 高度なチェイステクニックの習得');
+    advice.push('3. **メンタル強化**: プレッシャー下での冷静な判断力向上');
+  }
+  
+  // メモ分析
+  const memoInsights = analyzeMemosAdvanced(results);
+  if (memoInsights) {
+    advice.push('\n📝 **プレイスタイル分析**');
+    advice.push(memoInsights);
+  }
+  
+  // モチベーション
+  advice.push('\n💪 **応援メッセージ**');
+  const motivationMessages = [
+    '継続は力なり！毎日の小さな積み重ねが大きな成長に繋がります',
+    '失敗も成長の一部。楽しみながらスキルアップしていきましょう！',
+    'あなたのペースで大丈夫。着実に上達していることがデータからも分かります',
+    'DBDは奥が深いゲーム。長期的な視点で楽しみながら上達していきましょう'
+  ];
+  
+  const randomMotivation = motivationMessages[Math.floor(Math.random() * motivationMessages.length)];
+  advice.push(randomMotivation);
+  
+  return advice;
+};
 
-  // メモ分析（簡単なキーワード検索）
-  const memoKeywords = {
-    'チェイス': 'チェイス技術の向上に注力されていますね。窓枠と板の使い分けを意識してみてください。',
-    '発電機': '発電機修理への意識が高いです。スキルチェック成功率とチームワークを重視しましょう。',
-    'キャンプ': 'キャンプ対策で悩んでいるようです。セカンドチャンスや与えられた猶予などのパークが有効です。',
-    'トンネル': 'トンネル対策として、DSや決死の一撃パークの使用を検討してみてください。'
+// メモの高度な分析
+const analyzeMemosAdvanced = (results) => {
+  const memos = results.filter(r => r.memo && r.memo.trim()).map(r => r.memo);
+  if (memos.length === 0) return null;
+  
+  const insights = [];
+  const memoText = memos.join(' ').toLowerCase();
+  
+  const keywords = {
+    'チェイス': 'チェイス技術への意識が高い',
+    '発電機': '発電機効率を重視している',
+    '救助': 'チームプレイを意識している',
+    'キャンプ': 'キラーの戦術を理解し分析している',
+    'ミス': '自己分析能力が高い'
   };
-
-  const allMemos = results.map(r => r.memo || '').join(' ').toLowerCase();
-  Object.entries(memoKeywords).forEach(([keyword, advice]) => {
-    if (allMemos.includes(keyword.toLowerCase())) {
-      analysis.advice.push(`📝 ${advice}`);
+  
+  Object.entries(keywords).forEach(([keyword, meaning]) => {
+    if (memoText.includes(keyword.toLowerCase())) {
+      insights.push(`・${meaning}`);
     }
   });
-
-  // 試合数に応じたアドバイス
-  if (analysis.stats.totalGames < 10) {
-    analysis.advice.push('📊 さらに詳細な分析のため、もう少し試合データを蓄積してみてください。');
+  
+  if (insights.length === 0) {
+    insights.push('・詳細なメモを残し、真剣にプレイに取り組んでいる');
   }
-
-  return analysis;
+  
+  return insights.join('\n');
 };
 
 const AIAnalysis = ({ results }) => {
-  const [aiAnalysis, setAiAnalysis] = useState(null);
-  const [isLoadingAI, setIsLoadingAI] = useState(false);
-  const [showAIAnalysis, setShowAIAnalysis] = useState(false);
-
-  const analysis = analyzeResults(results);
-
-  // AI分析を実行
-  const runAIAnalysis = async () => {
-    console.log('🔍 AI分析開始 - 戦績数:', results.length);
-    
-    setIsLoadingAI(true);
-    try {
-      console.log('🤖 AIサービス呼び出し中...');
-      
-      // ✅ 修正：正しい形式でデータを渡す
-      const basicAnalysis = {
-        stats: analysis.stats
-      };
-      
-      console.log('📊 AIに渡すデータ:', basicAnalysis);
-      
-      const aiResult = await aiService.generateAdvancedAnalysis(basicAnalysis, results);
-      console.log('✅ AI応答:', aiResult);
-      
-      setAiAnalysis(aiResult);
-      setShowAIAnalysis(true);
-    } catch (error) {
-      console.error('❌ AI分析エラー:', error);
-      setAiAnalysis({
-        success: false,
-        error: 'AI分析に失敗しました: ' + error.message,
-        fallback: 'しばらく時間をおいてから再度お試しください。'
-      });
-      setShowAIAnalysis(true);
-    } finally {
-      setIsLoadingAI(false);
-    }
-  };
+  const analysis = generateAdvancedAnalysis(results);
 
   const analysisStyles = {
     container: {
@@ -219,7 +296,8 @@ const AIAnalysis = ({ results }) => {
       padding: '8px',
       borderLeft: `3px solid ${colors.primary}`,
       paddingLeft: '12px',
-      lineHeight: '1.4'
+      lineHeight: '1.4',
+      whiteSpace: 'pre-wrap'
     }
   };
 
@@ -237,79 +315,12 @@ const AIAnalysis = ({ results }) => {
       )}
 
       <div style={analysisStyles.adviceList}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <h3 style={{ color: colors.primary, marginTop: 0 }}>💡 改善アドバイス</h3>
-          <button
-            onClick={runAIAnalysis}
-            disabled={isLoadingAI || results.length === 0}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: colors.primary,
-              color: colors.background,
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              opacity: (isLoadingAI || results.length === 0) ? 0.6 : 1
-            }}
-          >
-            {isLoadingAI ? '🤖 AI分析中...' : '🤖 AI詳細分析'}
-          </button>
-        </div>
-        
-        {/* 基本アドバイス */}
-        <div style={{ marginBottom: showAIAnalysis ? '20px' : '0' }}>
-          <h4 style={{ color: colors.primary, fontSize: '1rem', marginBottom: '10px' }}>📊 基本分析</h4>
-          {analysis.advice.map((advice, index) => (
-            <div key={index} style={analysisStyles.adviceItem}>
-              {advice}
-            </div>
-          ))}
-        </div>
-
-        {/* AI分析結果 */}
-        {showAIAnalysis && aiAnalysis && (
-          <div style={{
-            backgroundColor: colors.background,
-            padding: '15px',
-            borderRadius: '6px',
-            border: `2px solid ${colors.primary}`,
-            marginTop: '15px'
-          }}>
-            <h4 style={{ color: colors.primary, fontSize: '1rem', marginBottom: '10px' }}>
-              🤖 AI詳細分析
-              {aiAnalysis.source && (
-                <span style={{ fontSize: '0.8rem', color: colors.textMuted, marginLeft: '10px' }}>
-                  by {aiAnalysis.source} | {aiAnalysis.cost || '完全無料'}
-                </span>
-              )}
-            </h4>
-            
-            {aiAnalysis.success ? (
-              <div style={{
-                ...analysisStyles.adviceItem,
-                backgroundColor: colors.backgroundLight,
-                whiteSpace: 'pre-wrap'
-              }}>
-                {aiAnalysis.advice}
-              </div>
-            ) : (
-              <div>
-                <div style={{ color: colors.error, marginBottom: '10px' }}>
-                  ⚠️ {aiAnalysis.error}
-                </div>
-                {aiAnalysis.fallback && (
-                  <div style={{
-                    ...analysisStyles.adviceItem,
-                    whiteSpace: 'pre-wrap'
-                  }}>
-                    {aiAnalysis.fallback}
-                  </div>
-                )}
-              </div>
-            )}
+        <h3 style={{ color: colors.primary, marginTop: 0 }}>💡 AI分析結果</h3>
+        {analysis.advice.map((advice, index) => (
+          <div key={index} style={analysisStyles.adviceItem}>
+            {advice}
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
