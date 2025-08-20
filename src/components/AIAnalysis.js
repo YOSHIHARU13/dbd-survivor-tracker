@@ -11,75 +11,87 @@ const generateFactualAnalysis = (results) => {
   const stats = calculateFactualStats(results);
   const analysis = [];
 
-  // 基本数値
+  // 基本数値（常に表示）
   analysis.push(`個人脱出率: ${stats.escapeRate}% (${stats.totalEscapes}/${stats.totalGames})`);
-  analysis.push(`チーム脱出率: ${stats.teamEscapeRate}% (全${stats.totalGames}試合平均)`);
-  analysis.push(`自己評価平均: ${stats.avgRating} (5段階)`);
+  analysis.push(`チーム脱出率: ${stats.teamEscapeRate}%`);
   analysis.push('');
 
-  // 数値比較
-  const comparison = compareRates(stats);
-  if (comparison) {
-    analysis.push(`【数値比較】${comparison}`);
-    analysis.push('');
+  // 得意キラートップ3（常に表示）
+  const topKillers = getTopKillers(stats.killerStats, true);
+  analysis.push('【得意キラー TOP3】');
+  if (topKillers.length === 0) {
+    analysis.push('データ不足（各キラー2試合以上で表示）');
+  } else {
+    topKillers.forEach((k, i) => {
+      analysis.push(`${i+1}. ${k.killer}: 脱出率${k.personal}% / 評価平均${k.avgRating} (${k.games}試合)`);
+    });
   }
+  analysis.push('');
+
+  // 苦手キラートップ3（常に表示）
+  const worstKillers = getTopKillers(stats.killerStats, false);
+  analysis.push('【苦手キラー TOP3】');
+  if (worstKillers.length === 0) {
+    analysis.push('データ不足（各キラー2試合以上で表示）');
+  } else {
+    worstKillers.forEach((k, i) => {
+      analysis.push(`${i+1}. ${k.killer}: 脱出率${k.personal}% / 評価平均${k.avgRating} (${k.games}試合)`);
+    });
+  }
+  analysis.push('');
+
+  // 勝率高いステージトップ3（常に表示）
+  const topStages = getTopStages(stats.stageStats, true);
+  analysis.push('【勝率高いステージ TOP3】');
+  if (topStages.length === 0) {
+    analysis.push('データ不足（各ステージ2試合以上で表示）');
+  } else {
+    topStages.forEach((s, i) => {
+      analysis.push(`${i+1}. ${s.stage}: 脱出率${s.personal}% / 評価平均${s.avgRating} (${s.games}試合)`);
+    });
+  }
+  analysis.push('');
+
+  // 勝率低いステージトップ3（常に表示）
+  const worstStages = getTopStages(stats.stageStats, false);
+  analysis.push('【勝率低いステージ TOP3】');
+  if (worstStages.length === 0) {
+    analysis.push('データ不足（各ステージ2試合以上で表示）');
+  } else {
+    worstStages.forEach((s, i) => {
+      analysis.push(`${i+1}. ${s.stage}: 脱出率${s.personal}% / 評価平均${s.avgRating} (${s.games}試合)`);
+    });
+  }
+  analysis.push('');
+
+  // その他の分析データ
+  analysis.push(`【自己評価】平均${stats.avgRating} / 一致度${stats.consistencyRate}%`);
 
   // 最近の数値変化
   if (stats.recentTrend) {
     analysis.push('【最近の変化】');
-    analysis.push(`個人: ${formatTrend(stats.recentTrend.personal)}`);
-    analysis.push(`チーム: ${formatTrend(stats.recentTrend.team)}`);
+    analysis.push(`個人: ${formatTrend(stats.recentTrend.personal)} / チーム: ${formatTrend(stats.recentTrend.team)}`);
     analysis.push('');
   }
 
-  // 自己評価の一致度
-  analysis.push(`【自己評価一致度】${stats.consistencyRate}%`);
-  if (stats.consistencyRate >= 70) {
-    analysis.push('評価と結果がよく一致している');
-  } else if (stats.consistencyRate <= 40) {
-    analysis.push('評価と結果に乖離が見られる');
-  }
-  analysis.push('');
-
-  // キラー別データ
-  const killerData = analyzeKillerData(stats.killerStats);
-  if (killerData.weak.length > 0) {
-    analysis.push('【数値的に低いキラー】');
-    killerData.weak.forEach(k => {
-      analysis.push(`${k.killer}: 個人${k.personal}% / チーム${k.team}% (${k.games}試合)`);
-    });
-    analysis.push('');
-  }
-
-  if (killerData.strong.length > 0) {
-    analysis.push('【数値的に高いキラー】');
-    killerData.strong.forEach(k => {
-      analysis.push(`${k.killer}: 個人${k.personal}% / チーム${k.team}% (${k.games}試合)`);
-    });
-    analysis.push('');
-  }
-
-  // ステージ別データ
-  const stageData = analyzeStageData(stats.stageStats);
-  if (stageData.notable.length > 0) {
-    analysis.push('【ステージ別数値】');
-    stageData.notable.forEach(s => {
-      analysis.push(`${s.stage}: 個人${s.personal}% / チーム${s.team}% (${s.games}試合)`);
-    });
+  // 数値比較
+  const comparison = compareRates(stats);
+  if (comparison) {
+    analysis.push(`【チーム比較】${comparison}`);
     analysis.push('');
   }
 
   // メモ分析（事実のみ）
   const memoFacts = analyzeMemoFacts(results);
   if (memoFacts.length > 0) {
-    analysis.push('【メモから確認される事実】');
+    analysis.push('【メモ分析】');
     memoFacts.forEach(fact => analysis.push(`・${fact}`));
     analysis.push('');
   }
 
   // 改善の方向性（事実ベース）
   const directions = getImprovementDirections(stats, results);
-  analysis.push('【データに基づく改善方向】');
+  analysis.push('【改善方向】');
   directions.forEach(dir => analysis.push(`・${dir}`));
 
   return { advice: analysis, stats };
@@ -107,31 +119,51 @@ const calculateFactualStats = (results) => {
   results.forEach(result => {
     const myStatus = result.survivorStatus?.['自分'] === '逃';
     const teamEscapes = Object.values(result.survivorStatus || {}).filter(s => s === '逃').length;
+    const rating = result.selfRating ? getRatingScore(result.selfRating) : null;
     
     if (myStatus) stats.totalEscapes++;
     totalTeamEscapes += teamEscapes;
 
-    // キラー別統計
+    // キラー別統計（自己評価含む）
     if (!stats.killerStats[result.killer]) {
-      stats.killerStats[result.killer] = { games: 0, escapes: 0, teamEscapes: 0 };
+      stats.killerStats[result.killer] = { 
+        games: 0, 
+        escapes: 0, 
+        teamEscapes: 0,
+        ratingSum: 0,
+        ratingCount: 0
+      };
     }
     stats.killerStats[result.killer].games++;
     stats.killerStats[result.killer].teamEscapes += teamEscapes;
     if (myStatus) stats.killerStats[result.killer].escapes++;
+    if (rating !== null) {
+      stats.killerStats[result.killer].ratingSum += rating;
+      stats.killerStats[result.killer].ratingCount++;
+    }
 
-    // ステージ別統計
+    // ステージ別統計（自己評価含む）
     if (result.stage) {
       if (!stats.stageStats[result.stage]) {
-        stats.stageStats[result.stage] = { games: 0, escapes: 0, teamEscapes: 0 };
+        stats.stageStats[result.stage] = { 
+          games: 0, 
+          escapes: 0, 
+          teamEscapes: 0,
+          ratingSum: 0,
+          ratingCount: 0
+        };
       }
       stats.stageStats[result.stage].games++;
       stats.stageStats[result.stage].teamEscapes += teamEscapes;
       if (myStatus) stats.stageStats[result.stage].escapes++;
+      if (rating !== null) {
+        stats.stageStats[result.stage].ratingSum += rating;
+        stats.stageStats[result.stage].ratingCount++;
+      }
     }
 
-    // 自己評価
-    if (result.selfRating) {
-      const rating = getRatingScore(result.selfRating);
+    // 全体自己評価
+    if (rating !== null) {
       ratingSum += rating;
       ratingCount++;
 
@@ -168,6 +200,44 @@ const calculateFactualStats = (results) => {
   return stats;
 };
 
+// トップキラー取得（得意・苦手）
+const getTopKillers = (killerStats, isTop) => {
+  const killers = Object.entries(killerStats)
+    .filter(([_, data]) => data.games >= 2)
+    .map(([killer, data]) => ({
+      killer,
+      personal: parseFloat((data.escapes / data.games * 100).toFixed(1)),
+      team: parseFloat((data.teamEscapes / (data.games * 4) * 100).toFixed(1)),
+      avgRating: data.ratingCount > 0 ? parseFloat((data.ratingSum / data.ratingCount).toFixed(1)) : '-',
+      games: data.games
+    }));
+
+  const sorted = isTop 
+    ? killers.sort((a, b) => b.personal - a.personal)  // 降順（得意）
+    : killers.sort((a, b) => a.personal - b.personal); // 昇順（苦手）
+
+  return sorted.slice(0, 3);
+};
+
+// トップステージ取得（勝率高い・低い）
+const getTopStages = (stageStats, isTop) => {
+  const stages = Object.entries(stageStats)
+    .filter(([_, data]) => data.games >= 2)
+    .map(([stage, data]) => ({
+      stage,
+      personal: parseFloat((data.escapes / data.games * 100).toFixed(1)),
+      team: parseFloat((data.teamEscapes / (data.games * 4) * 100).toFixed(1)),
+      avgRating: data.ratingCount > 0 ? parseFloat((data.ratingSum / data.ratingCount).toFixed(1)) : '-',
+      games: data.games
+    }));
+
+  const sorted = isTop 
+    ? stages.sort((a, b) => b.personal - a.personal)  // 降順（勝率高い）
+    : stages.sort((a, b) => a.personal - b.personal); // 昇順（勝率低い）
+
+  return sorted.slice(0, 3);
+};
+
 // 自己評価スコア
 const getRatingScore = (rating) => {
   const map = { '最悪': 1, '悪い': 2, '普通': 3, '良い': 4, '最高': 5 };
@@ -193,47 +263,11 @@ const formatTrend = (trend) => {
   return `${Math.abs(trend).toFixed(1)}%${direction}`;
 };
 
-// キラー別データ分析
-const analyzeKillerData = (killerStats) => {
-  const killers = Object.entries(killerStats)
-    .filter(([_, data]) => data.games >= 2)
-    .map(([killer, data]) => ({
-      killer,
-      personal: parseFloat((data.escapes / data.games * 100).toFixed(1)),
-      team: parseFloat((data.teamEscapes / (data.games * 4) * 100).toFixed(1)),
-      games: data.games
-    }));
+// キラー別データ分析（削除 - 新しいトップ3に統合）
+// const analyzeKillerData = ...
 
-  const weak = killers
-    .filter(k => k.personal <= 30)
-    .sort((a, b) => a.personal - b.personal)
-    .slice(0, 3);
-
-  const strong = killers
-    .filter(k => k.personal >= 70)
-    .sort((a, b) => b.personal - a.personal)
-    .slice(0, 3);
-
-  return { weak, strong };
-};
-
-// ステージ別データ分析
-const analyzeStageData = (stageStats) => {
-  const stages = Object.entries(stageStats)
-    .filter(([_, data]) => data.games >= 2)
-    .map(([stage, data]) => ({
-      stage,
-      personal: parseFloat((data.escapes / data.games * 100).toFixed(1)),
-      team: parseFloat((data.teamEscapes / (data.games * 4) * 100).toFixed(1)),
-      games: data.games
-    }))
-    .sort((a, b) => a.personal - b.personal);
-
-  // 極端に高い・低いもののみ
-  const notable = stages.filter(s => s.personal <= 25 || s.personal >= 75);
-
-  return { notable };
-};
+// ステージ別データ分析（削除 - 新しいトップ3に統合）  
+// const analyzeStageData = ...
 
 // メモ事実分析
 const analyzeMemoFacts = (results) => {
