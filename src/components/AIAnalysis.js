@@ -104,72 +104,7 @@ const generateAdvancedAnalysis = (results) => {
   stats.weakKillers.sort((a, b) => a.winRate - b.winRate);
   stats.strongKillers.sort((a, b) => b.winRate - a.winRate);
 
-  // 総合AI分析を生成
-  const aiAdvice = generateAIStyleAdvice(stats, results);
-
-  return { stats, advice: aiAdvice };
-};ください。'],
-      stats: null
-    };
-  }
-
-  const stats = {
-    totalGames: results.length,
-    totalEscapes: 0,
-    escapeRate: 0,
-    killerStats: {},
-    weakKillers: [],
-    strongKillers: []
-  };
-
-  // キラー別統計計算
-  results.forEach(result => {
-    if (!result.survivorStatus) return;
-    
-    const myStatus = result.survivorStatus['自分'] || 
-                    Object.values(result.survivorStatus)[0];
-    
-    if (myStatus === '逃') {
-      stats.totalEscapes++;
-    }
-
-    if (!stats.killerStats[result.killer]) {
-      stats.killerStats[result.killer] = { games: 0, escapes: 0 };
-    }
-    stats.killerStats[result.killer].games++;
-    if (myStatus === '逃') {
-      stats.killerStats[result.killer].escapes++;
-    }
-  });
-
-  // 脱出率計算
-  stats.escapeRate = parseFloat((stats.totalEscapes / stats.totalGames * 100).toFixed(1));
-
-  // 苦手・得意キラー特定
-  Object.entries(stats.killerStats).forEach(([killer, killerStats]) => {
-    const winRate = (killerStats.escapes / killerStats.games * 100);
-    if (killerStats.games >= 2) {
-      if (winRate < 30) {
-        stats.weakKillers.push({ 
-          killer, 
-          winRate: parseFloat(winRate.toFixed(1)), 
-          games: killerStats.games 
-        });
-      } else if (winRate > 70) {
-        stats.strongKillers.push({ 
-          killer, 
-          winRate: parseFloat(winRate.toFixed(1)), 
-          games: killerStats.games 
-        });
-      }
-    }
-  });
-
-  // ソート
-  stats.weakKillers.sort((a, b) => a.winRate - b.winRate);
-  stats.strongKillers.sort((a, b) => b.winRate - a.winRate);
-
-  // AI風の詳細分析を生成
+  // 総合分析を生成
   const aiAdvice = generateAIStyleAdvice(stats, results);
 
   return { stats, advice: aiAdvice };
@@ -179,7 +114,7 @@ const generateAdvancedAnalysis = (results) => {
 const generateAIStyleAdvice = (stats, results) => {
   const advice = [];
   
-  // AI分析ヘッダー
+  // 分析ヘッダー
   advice.push('🤖 【総合戦績分析】\n');
   
   // 各種分析の実行
@@ -278,136 +213,9 @@ const generateAIStyleAdvice = (stats, results) => {
   }
   
   // 改善提案（総合的）
-  advice.push('🎯 改善提案');
+  advice.push('\n🎯 改善提案');
   const improvementSuggestions = generateComprehensiveImprovementSuggestions(stats, selfRatingAnalysis, killerLevelAnalysis, results);
   improvementSuggestions.forEach(suggestion => advice.push(suggestion));
-  
-  return advice;
-};
-
-// 特筆すべきポイントの生成
-const generateNotablePoints = (stats, selfRatingAnalysis, killerLevelAnalysis, results) => {
-  const points = [];
-  
-  // 強い相手への対応力
-  const strongOpponentStats = killerLevelAnalysis.levelStats['上級'] || killerLevelAnalysis.levelStats['プロ級'];
-  if (strongOpponentStats && parseFloat(strongOpponentStats.escapeRate) >= 40) {
-    points.push('上級者相手でも安定した成績を残している（対応力が高い）');
-  }
-  
-  // 自己評価の正確性
-  if (parseFloat(selfRatingAnalysis.consistencyRate) >= 75) {
-    points.push('自己評価と結果の一致率が高く、客観的な自己分析ができている');
-  } else if (parseFloat(selfRatingAnalysis.consistencyRate) >= 60) {
-    points.push('自己評価と結果がある程度一致しており、現実的な判断力を持っている');
-  }
-  
-  // 謙虚さと冷静さ
-  if (selfRatingAnalysis.lowRatingEscapes.length >= 2) {
-    points.push('低評価でも脱出した試合が複数あり、謙虚で冷静な判断力を持っている');
-  }
-  
-  // 状況理解力
-  if (selfRatingAnalysis.highRatingDeaths.length >= 2) {
-    points.push('高評価でも死亡した試合を正しく分析でき、チーム状況や相手実力を理解している');
-  }
-  
-  // プレイスタイルの多様性
-  const ratingVariance = Math.max(...Object.values(selfRatingAnalysis.ratingDistribution)) / results.length;
-  if (ratingVariance < 0.6) { // 特定の評価に偏りすぎていない
-    points.push('様々な状況に対して柔軟に対応し、バランスの良いプレイスタイル');
-  }
-  
-  // 成長傾向の分析
-  if (results.length >= 10) {
-    const recent5 = results.slice(0, 5);
-    const older5 = results.slice(5, 10);
-    const recentAvg = recent5.reduce((sum, r) => sum + getRatingScore(r.selfRating || '普通'), 0) / 5;
-    const olderAvg = older5.reduce((sum, r) => sum + getRatingScore(r.selfRating || '普通'), 0) / 5;
-    
-    if (recentAvg > olderAvg + 0.4) {
-      points.push('最近の自己評価が大幅に向上しており、著しい成長が見られる');
-    } else if (recentAvg > olderAvg + 0.2) {
-      points.push('最近の自己評価が向上しており、着実な成長が見られる');
-    }
-    
-    // 脱出率の傾向も分析
-    const recentEscapes = recent5.filter(r => r.survivorStatus?.['自分'] === '逃').length;
-    const olderEscapes = older5.filter(r => r.survivorStatus?.['自分'] === '逃').length;
-    const recentEscapeRate = (recentEscapes / 5 * 100);
-    const olderEscapeRate = (olderEscapes / 5 * 100);
-    
-    if (recentEscapeRate > olderEscapeRate + 20) {
-      points.push('最近の成績が大幅に向上しており、実力アップが結果に現れている');
-    }
-  }
-  
-  // 継続性の評価
-  if (results.length >= 20) {
-    points.push('十分な試合数を蓄積しており、継続的な分析と改善に取り組んでいる');
-  } else if (results.length >= 10) {
-    points.push('適度な試合数で傾向が見えており、継続的な成長が期待できる');
-  }
-  
-  // 難しい相手への挑戦
-  if (killerLevelAnalysis.averageOpponentLevel >= 3.5) {
-    points.push('平均的に強い相手と対戦しており、高いレベルでの経験を積んでいる');
-  }
-  
-  // 安定性の評価
-  const recentGames = Math.min(5, results.length);
-  const recentResults = results.slice(0, recentGames);
-  const recentRatingVariance = Math.max(...Object.values(
-    recentResults.reduce((acc, r) => {
-      const rating = r.selfRating || '普通';
-      acc[rating] = (acc[rating] || 0) + 1;
-      return acc;
-    }, {})
-  )) / recentGames;
-  
-  if (recentRatingVariance <= 0.6 && recentGames >= 3) {
-    points.push('最近の試合で安定したパフォーマンスを維持している');
-  }
-  
-  return points;
-};
-
-// 総合的な改善提案
-const generateComprehensiveImprovementSuggestions = (stats, selfRatingAnalysis, killerLevelAnalysis, results) => {
-  const suggestions = [];
-  
-  // 相手レベル別の課題
-  const weakestLevel = Object.entries(killerLevelAnalysis.levelStats)
-    .sort(([,a], [,b]) => parseFloat(a.escapeRate) - parseFloat(b.escapeRate))[0];
-  
-  if (weakestLevel && parseFloat(weakestLevel[1].escapeRate) < 40) {
-    suggestions.push(`1. ${weakestLevel[0]}レベル対策: 最も苦戦している層への対応策を重点的に学習`);
-  }
-  
-  // 自己評価の精度向上
-  if (parseFloat(selfRatingAnalysis.consistencyRate) < 60) {
-    suggestions.push('2. 自己評価精度: 結果と評価の乖離を減らし、より客観的な自己分析を目指す');
-  }
-  
-  // 相手レベルに応じた立ち回り
-  if (killerLevelAnalysis.averageOpponentLevel >= 3.5) {
-    suggestions.push('3. 上級者対策: 強い相手に対する専用の立ち回りとメンタル管理を強化');
-  } else if (killerLevelAnalysis.averageOpponentLevel <= 2.5) {
-    suggestions.push('3. 基礎の徹底: 相手レベルに関係なく安定した成績を出せる基礎力の向上');
-  }
-  
-  // 総合力向上
-  if (stats.escapeRate < 50) {
-    if (selfRatingAnalysis.averageScore >= 3.5) {
-      suggestions.push('4. 結果への転換: 自己評価は良好なので、それを確実な結果に繋げる方法を模索');
-    } else {
-      suggestions.push('4. 基礎スキル: チェイス・立ち回り・判断力の総合的な底上げ');
-    }
-  } else {
-    suggestions.push('4. 安定性向上: 現在の実力を維持しつつ、更なる安定性と対応力を身につける');
-  }
-  
-  return suggestions;
   
   // メモ分析
   const memoInsights = analyzeMemosAdvanced(results);
@@ -464,7 +272,7 @@ const analyzeMemosAdvanced = (results) => {
 const analyzeSelfRating = (results) => {
   const ratingsWithScores = results
     .map(r => ({
-      rating: r.selfRating || '普通', // フォールバック
+      rating: r.selfRating || '普通',
       score: getRatingScore(r.selfRating || '普通'),
       result: r
     }));
@@ -526,8 +334,7 @@ const analyzeKillerLevels = (results) => {
   let levelCount = 0;
 
   results.forEach(result => {
-    const killer = result.killer;
-    const level = result.killerLevel || '中級'; // フォールバック
+    const level = result.killerLevel || '中級';
     const levelScore = getKillerLevelScore(level);
     const isEscape = result.survivorStatus?.['自分'] === '逃';
     const selfScore = getRatingScore(result.selfRating || '普通');
@@ -674,77 +481,126 @@ const getScoreBreakdown = (escapeRate, avgSelfRating, consistencyRate, avgOppone
   };
 };
 
-// 自己評価に基づく褒めポイント
-const generatePraiseBasedOnSelfRating = (selfRatingAnalysis, results) => {
-  const praise = [];
+// 特筆すべきポイントの生成
+const generateNotablePoints = (stats, selfRatingAnalysis, killerLevelAnalysis, results) => {
+  const points = [];
   
-  if (selfRatingAnalysis.totalRatings === 0) {
-    return ['自己分析の習慣をつけると、更なる成長が期待できます'];
+  // 強い相手への対応力
+  const strongOpponentStats = killerLevelAnalysis.levelStats['上級'] || killerLevelAnalysis.levelStats['プロ級'];
+  if (strongOpponentStats && parseFloat(strongOpponentStats.escapeRate) >= 40) {
+    points.push('上級者相手でも安定した成績を残している（対応力が高い）');
   }
   
-  // 自己評価をきちんと記録している
-  const ratingPercentage = (selfRatingAnalysis.totalRatings / results.length * 100).toFixed(0);
-  if (ratingPercentage >= 70) {
-    praise.push(`自己評価を${ratingPercentage}%の試合で記録しており、分析意識が高い`);
+  // 自己評価の正確性
+  if (parseFloat(selfRatingAnalysis.consistencyRate) >= 75) {
+    points.push('自己評価と結果の一致率が高く、客観的な自己分析ができている');
+  } else if (parseFloat(selfRatingAnalysis.consistencyRate) >= 60) {
+    points.push('自己評価と結果がある程度一致しており、現実的な判断力を持っている');
   }
   
-  // 謙虚な姿勢
-  if (selfRatingAnalysis.hasLowRatingEscapes) {
-    praise.push('低評価でも脱出した試合があり、謙虚な自己分析ができている');
+  // 謙虚さと冷静さ
+  if (selfRatingAnalysis.lowRatingEscapes.length >= 2) {
+    points.push('低評価でも脱出した試合が複数あり、謙虚で冷静な判断力を持っている');
   }
   
-  // 現実的な評価
-  if (selfRatingAnalysis.hasHighRatingDeaths) {
-    praise.push('高評価でも死亡した試合を冷静に分析でき、チーム事情や相手の実力を理解している');
+  // 状況理解力
+  if (selfRatingAnalysis.highRatingDeaths.length >= 2) {
+    points.push('高評価でも死亡した試合を正しく分析でき、チーム状況や相手実力を理解している');
   }
   
-  // 安定した自己評価
-  const goodRatings = Object.entries(selfRatingAnalysis.ratingDistribution)
-    .filter(([rating]) => rating === '良い' || rating === '最高')
-    .reduce((sum, [, count]) => sum + count, 0);
-  
-  if (goodRatings >= selfRatingAnalysis.totalRatings * 0.4) {
-    praise.push('自分のプレイに対して適切な自信を持てている');
+  // プレイスタイルの多様性
+  const ratingVariance = Math.max(...Object.values(selfRatingAnalysis.ratingDistribution)) / results.length;
+  if (ratingVariance < 0.6) {
+    points.push('様々な状況に対して柔軟に対応し、バランスの良いプレイスタイル');
   }
   
-  // 改善意識
-  const badRatings = Object.entries(selfRatingAnalysis.ratingDistribution)
-    .filter(([rating]) => rating === '悪い' || rating === '最悪')
-    .reduce((sum, [, count]) => sum + count, 0);
-  
-  if (badRatings > 0) {
-    praise.push('自分の課題を正しく認識し、改善に向けた意識がある');
+  // 成長傾向の分析
+  if (results.length >= 10) {
+    const recent5 = results.slice(0, 5);
+    const older5 = results.slice(5, 10);
+    const recentAvg = recent5.reduce((sum, r) => sum + getRatingScore(r.selfRating || '普通'), 0) / 5;
+    const olderAvg = older5.reduce((sum, r) => sum + getRatingScore(r.selfRating || '普通'), 0) / 5;
+    
+    if (recentAvg > olderAvg + 0.4) {
+      points.push('最近の自己評価が大幅に向上しており、著しい成長が見られる');
+    } else if (recentAvg > olderAvg + 0.2) {
+      points.push('最近の自己評価が向上しており、着実な成長が見られる');
+    }
+    
+    // 脱出率の傾向も分析
+    const recentEscapes = recent5.filter(r => r.survivorStatus?.['自分'] === '逃').length;
+    const olderEscapes = older5.filter(r => r.survivorStatus?.['自分'] === '逃').length;
+    const recentEscapeRate = (recentEscapes / 5 * 100);
+    const olderEscapeRate = (olderEscapes / 5 * 100);
+    
+    if (recentEscapeRate > olderEscapeRate + 20) {
+      points.push('最近の成績が大幅に向上しており、実力アップが結果に現れている');
+    }
   }
   
-  return praise;
+  // 継続性の評価
+  if (results.length >= 20) {
+    points.push('十分な試合数を蓄積しており、継続的な分析と改善に取り組んでいる');
+  } else if (results.length >= 10) {
+    points.push('適度な試合数で傾向が見えており、継続的な成長が期待できる');
+  }
+  
+  // 難しい相手への挑戦
+  if (killerLevelAnalysis.averageOpponentLevel >= 3.5) {
+    points.push('平均的に強い相手と対戦しており、高いレベルでの経験を積んでいる');
+  }
+  
+  // 安定性の評価
+  const recentGames = Math.min(5, results.length);
+  const recentResults = results.slice(0, recentGames);
+  const recentRatingVariance = Math.max(...Object.values(
+    recentResults.reduce((acc, r) => {
+      const rating = r.selfRating || '普通';
+      acc[rating] = (acc[rating] || 0) + 1;
+      return acc;
+    }, {})
+  )) / recentGames;
+  
+  if (recentRatingVariance <= 0.6 && recentGames >= 3) {
+    points.push('最近の試合で安定したパフォーマンスを維持している');
+  }
+  
+  return points;
 };
 
-// 改善提案（自己評価ベース）
-const generateImprovementSuggestions = (stats, selfRatingAnalysis, results) => {
+// 総合的な改善提案
+const generateComprehensiveImprovementSuggestions = (stats, selfRatingAnalysis, killerLevelAnalysis, results) => {
   const suggestions = [];
   
-  // 自己評価の記録を推奨
-  if (selfRatingAnalysis.totalRatings < results.length * 0.5) {
-    suggestions.push('1. 自己評価の記録: 試合後の振り返りを習慣化して成長を可視化');
+  // 相手レベル別の課題
+  const weakestLevel = Object.entries(killerLevelAnalysis.levelStats)
+    .sort(([,a], [,b]) => parseFloat(a.escapeRate) - parseFloat(b.escapeRate))[0];
+  
+  if (weakestLevel && parseFloat(weakestLevel[1].escapeRate) < 40) {
+    suggestions.push(`1. ${weakestLevel[0]}レベル対策: 最も苦戦している層への対応策を重点的に学習`);
   }
   
-  // 自己評価と結果のギャップ分析
-  if (selfRatingAnalysis.hasHighRatingDeaths && stats.escapeRate < 40) {
-    suggestions.push('2. チーム連携強化: 個人プレイは良いので、チーム状況の把握と連携を重視');
+  // 自己評価の精度向上
+  if (parseFloat(selfRatingAnalysis.consistencyRate) < 60) {
+    suggestions.push('2. 自己評価精度: 結果と評価の乖離を減らし、より客観的な自己分析を目指す');
   }
   
-  // 自信向上
-  if (selfRatingAnalysis.averageScore < 3 && stats.escapeRate >= 40) {
-    suggestions.push('3. 自信の向上: 結果が出ているので、もう少し自分のプレイを評価してみましょう');
+  // 相手レベルに応じた立ち回り
+  if (killerLevelAnalysis.averageOpponentLevel >= 3.5) {
+    suggestions.push('3. 上級者対策: 強い相手に対する専用の立ち回りとメンタル管理を強化');
+  } else if (killerLevelAnalysis.averageOpponentLevel <= 2.5) {
+    suggestions.push('3. 基礎の徹底: 相手レベルに関係なく安定した成績を出せる基礎力の向上');
   }
   
-  // 基本的な改善提案
-  if (stats.escapeRate < 30) {
-    suggestions.push('4. 基礎スキル: チェイステクニックとマップ知識の向上に集中');
-  } else if (stats.escapeRate < 50) {
-    suggestions.push('4. 応用技術: 状況判断と立ち回りの最適化を練習');
+  // 総合力向上
+  if (stats.escapeRate < 50) {
+    if (selfRatingAnalysis.averageScore >= 3.5) {
+      suggestions.push('4. 結果への転換: 自己評価は良好なので、それを確実な結果に繋げる方法を模索');
+    } else {
+      suggestions.push('4. 基礎スキル: チェイス・立ち回り・判断力の総合的な底上げ');
+    }
   } else {
-    suggestions.push('4. 上級技術: 更なる安定性と一歩先の読みを身につける');
+    suggestions.push('4. 安定性向上: 現在の実力を維持しつつ、更なる安定性と対応力を身につける');
   }
   
   return suggestions;
