@@ -1,5 +1,5 @@
-// App.js
-import React, { useState } from 'react';
+// App.js - ログイン状態永続化版
+import React, { useState, useEffect } from 'react';
 import LoginScreen from './components/LoginScreen';
 import BattleForm from './components/BattleForm';
 import StatsDisplay from './components/StatsDisplay';
@@ -12,6 +12,7 @@ function App() {
   // 認証状態
   const [user, setUser] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true); // 初期化中フラグ
   
   // ユーザー設定
   const [userSettings, setUserSettings] = useState(null);
@@ -34,6 +35,36 @@ function App() {
   const [period, setPeriod] = useState("today");
   const [killerFilter, setKillerFilter] = useState("");
   const [showStats, setShowStats] = useState(false);
+
+  // 初期化：ローカルストレージからログイン状態を復元
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        const savedUser = localStorage.getItem('dbd_user');
+        if (savedUser) {
+          const userData = JSON.parse(savedUser);
+          console.log('💾 保存されたユーザー情報を復元:', userData);
+          
+          setUser(userData);
+          setIsLoggedIn(true);
+          
+          // データ読み込み
+          await Promise.all([
+            loadUserResults(userData.uid),
+            loadUserSettings(userData.uid)
+          ]);
+        }
+      } catch (error) {
+        console.warn('ユーザー情報復元エラー:', error);
+        // エラー時は保存データを削除
+        localStorage.removeItem('dbd_user');
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initializeApp();
+  }, []);
 
   // データ読み込み
   const loadUserResults = React.useCallback(async (userId) => {
@@ -69,7 +100,10 @@ function App() {
   const handleLogin = React.useCallback((userData) => {
     setUser(userData);
     setIsLoggedIn(true);
-    console.log('ログイン成功:', userData);
+    
+    // ローカルストレージに保存
+    localStorage.setItem('dbd_user', JSON.stringify(userData));
+    console.log('💾 ユーザー情報を保存:', userData);
     
     // 戦績データとユーザー設定を並行して読み込み
     setTimeout(() => {
@@ -89,7 +123,10 @@ function App() {
     setResults([]);
     setUserSettings(null);
     setOthers(["野良", "野良", "野良"]); // リセット
-    console.log('ログアウトしました');
+    
+    // ローカルストレージからも削除
+    localStorage.removeItem('dbd_user');
+    console.log('💾 ユーザー情報を削除してログアウト');
   }, []);
 
   // フレンド設定更新
@@ -150,6 +187,24 @@ function App() {
     }
   }, [user?.uid]);
 
+  // 初期化中の表示
+  if (isInitializing) {
+    return (
+      <div style={{
+        ...styles.container,
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ color: colors.primary, fontSize: '1.2rem' }}>🔄 読み込み中...</p>
+          <p style={{ color: colors.textMuted }}>ログイン状態を確認しています</p>
+        </div>
+      </div>
+    );
+  }
+
   // ログイン前の表示
   if (!isLoggedIn) {
     return <LoginScreen onLogin={handleLogin} />;
@@ -164,7 +219,7 @@ function App() {
             👤 {user?.type === 'google' ? `${user?.email} (Google)` : user?.email}
           </p>
           <p style={{ color: colors.textDark, fontSize: '0.8rem', margin: 0 }}>
-            ✅ 戦績は安全に保存されます
+            ✅ 戦績は安全に保存されます | 🔄 自動ログイン有効
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
