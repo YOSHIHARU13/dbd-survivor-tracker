@@ -298,34 +298,75 @@ const generateNotablePoints = (stats, selfRatingAnalysis, killerLevelAnalysis, r
   // 自己評価の正確性
   if (parseFloat(selfRatingAnalysis.consistencyRate) >= 75) {
     points.push('自己評価と結果の一致率が高く、客観的な自己分析ができている');
+  } else if (parseFloat(selfRatingAnalysis.consistencyRate) >= 60) {
+    points.push('自己評価と結果がある程度一致しており、現実的な判断力を持っている');
   }
   
-  // 謙虚さ
+  // 謙虚さと冷静さ
   if (selfRatingAnalysis.lowRatingEscapes.length >= 2) {
     points.push('低評価でも脱出した試合が複数あり、謙虚で冷静な判断力を持っている');
   }
   
-  // 逆境での学習能力
+  // 状況理解力
   if (selfRatingAnalysis.highRatingDeaths.length >= 2) {
     points.push('高評価でも死亡した試合を正しく分析でき、チーム状況や相手実力を理解している');
   }
   
-  // バランスの良さ
+  // プレイスタイルの多様性
   const ratingVariance = Math.max(...Object.values(selfRatingAnalysis.ratingDistribution)) / results.length;
   if (ratingVariance < 0.6) { // 特定の評価に偏りすぎていない
     points.push('様々な状況に対して柔軟に対応し、バランスの良いプレイスタイル');
   }
   
-  // 成長傾向
+  // 成長傾向の分析
   if (results.length >= 10) {
     const recent5 = results.slice(0, 5);
     const older5 = results.slice(5, 10);
     const recentAvg = recent5.reduce((sum, r) => sum + getRatingScore(r.selfRating || '普通'), 0) / 5;
     const olderAvg = older5.reduce((sum, r) => sum + getRatingScore(r.selfRating || '普通'), 0) / 5;
     
-    if (recentAvg > olderAvg + 0.3) {
+    if (recentAvg > olderAvg + 0.4) {
+      points.push('最近の自己評価が大幅に向上しており、著しい成長が見られる');
+    } else if (recentAvg > olderAvg + 0.2) {
       points.push('最近の自己評価が向上しており、着実な成長が見られる');
     }
+    
+    // 脱出率の傾向も分析
+    const recentEscapes = recent5.filter(r => r.survivorStatus?.['自分'] === '逃').length;
+    const olderEscapes = older5.filter(r => r.survivorStatus?.['自分'] === '逃').length;
+    const recentEscapeRate = (recentEscapes / 5 * 100);
+    const olderEscapeRate = (olderEscapes / 5 * 100);
+    
+    if (recentEscapeRate > olderEscapeRate + 20) {
+      points.push('最近の成績が大幅に向上しており、実力アップが結果に現れている');
+    }
+  }
+  
+  // 継続性の評価
+  if (results.length >= 20) {
+    points.push('十分な試合数を蓄積しており、継続的な分析と改善に取り組んでいる');
+  } else if (results.length >= 10) {
+    points.push('適度な試合数で傾向が見えており、継続的な成長が期待できる');
+  }
+  
+  // 難しい相手への挑戦
+  if (killerLevelAnalysis.averageOpponentLevel >= 3.5) {
+    points.push('平均的に強い相手と対戦しており、高いレベルでの経験を積んでいる');
+  }
+  
+  // 安定性の評価
+  const recentGames = Math.min(5, results.length);
+  const recentResults = results.slice(0, recentGames);
+  const recentRatingVariance = Math.max(...Object.values(
+    recentResults.reduce((acc, r) => {
+      const rating = r.selfRating || '普通';
+      acc[rating] = (acc[rating] || 0) + 1;
+      return acc;
+    }, {})
+  )) / recentGames;
+  
+  if (recentRatingVariance <= 0.6 && recentGames >= 3) {
+    points.push('最近の試合で安定したパフォーマンスを維持している');
   }
   
   return points;
