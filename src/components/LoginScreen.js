@@ -385,19 +385,11 @@ const LoginScreen = ({ onLogin }) => {
       </button>
 
       <div style={{marginTop: '20px', padding: '15px', backgroundColor: colors.backgroundLight, borderRadius: '6px', fontSize: '0.9rem', color: colors.textMuted}}>
-        <h4 style={{color: colors.primary, margin: '0 0 10px 0'}}>✅ アカウント作成のメリット</h4>
+        <h4 style={{color: colors.primary, margin: '0 0 10px 0'}}>アカウント作成のメリット</h4>
         <ul style={{textAlign: 'left', margin: 0, paddingLeft: '20px'}}>
-          <li>戦績の永続保存</li>
-          <li>デバイス間でのデータ同期</li>
-          <li>詳細な統計分析</li>
-          <li>将来のAI機能利用</li>
-        </ul>
-        
-        <h4 style={{color: colors.secondary, margin: '15px 0 10px 0'}}>⚠️ お試し利用の制限</h4>
-        <ul style={{textAlign: 'left', margin: 0, paddingLeft: '20px'}}>
-          <li>ブラウザを閉じるとデータが消失</li>
-          <li>デバイス間での同期なし</li>
-          <li>統計機能の一部制限</li>
+          <li>戦績を永続的に保存できます。</li>
+          <li>デバイス間でデータを同期できます。</li>
+          <li>データが増えるにつれ、精度の高い分析ができます。</li>
         </ul>
       </div>
     </div>
