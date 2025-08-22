@@ -1,14 +1,14 @@
-// components/AIAnalysis.js - 事実ベース分析版
+// components/AIAnalysis.js - 簡潔版戦績分析
 import React from 'react';
 import { colors } from '../styles/commonStyles';
 
-// 事実ベース戦績分析
-const generateFactualAnalysis = (results) => {
+// 戦績分析
+const generateAnalysis = (results) => {
   if (!results || results.length === 0) {
     return { advice: ['データ不足'], stats: null };
   }
 
-  const stats = calculateFactualStats(results);
+  const stats = calculateStats(results);
   const analysis = [];
 
   // 基本数値（常に表示）
@@ -78,27 +78,13 @@ const generateFactualAnalysis = (results) => {
   const comparison = compareRates(stats);
   if (comparison) {
     analysis.push(`【チーム比較】${comparison}`);
-    analysis.push('');
   }
-
-  // メモ分析（事実のみ）
-  const memoFacts = analyzeMemoFacts(results);
-  if (memoFacts.length > 0) {
-    analysis.push('【メモ分析】');
-    memoFacts.forEach(fact => analysis.push(`・${fact}`));
-    analysis.push('');
-  }
-
-  // 改善の方向性（事実ベース）
-  const directions = getImprovementDirections(stats, results);
-  analysis.push('【改善方向】');
-  directions.forEach(dir => analysis.push(`・${dir}`));
 
   return { advice: analysis, stats };
 };
 
-// 事実のみの統計計算
-const calculateFactualStats = (results) => {
+// 統計計算
+const calculateStats = (results) => {
   const stats = {
     totalGames: results.length,
     totalEscapes: 0,
@@ -179,7 +165,7 @@ const calculateFactualStats = (results) => {
   stats.avgRating = ratingCount > 0 ? parseFloat((ratingSum / ratingCount).toFixed(1)) : 0;
   stats.consistencyRate = ratingCount > 0 ? parseFloat((consistentCount / ratingCount * 100).toFixed(1)) : 0;
 
-  // 最近の傾向（事実のみ）
+  // 最近の傾向
   if (results.length >= 6) {
     const splitPoint = Math.floor(results.length / 2);
     const recent = results.slice(0, splitPoint);
@@ -240,7 +226,7 @@ const getTopStages = (stageStats, isTop) => {
 
 // 自己評価スコア
 const getRatingScore = (rating) => {
-  const map = { '最悪': 1, '悪い': 2, '普通': 3, '良い': 4, '最高': 5 };
+  const map = { 'S': 5, 'A': 4, 'B': 3, 'C': 2, 'D': 1 };
   return map[rating] || 3;
 };
 
@@ -263,101 +249,8 @@ const formatTrend = (trend) => {
   return `${Math.abs(trend).toFixed(1)}%${direction}`;
 };
 
-// キラー別データ分析（削除 - 新しいトップ3に統合）
-// const analyzeKillerData = ...
-
-// ステージ別データ分析（削除 - 新しいトップ3に統合）  
-// const analyzeStageData = ...
-
-// メモ事実分析
-const analyzeMemoFacts = (results) => {
-  const facts = [];
-  const memos = results.map(r => r.memo || '').filter(m => m.trim());
-  
-  if (memos.length === 0) return facts;
-
-  // 記録率
-  const memoRate = (memos.length / results.length * 100).toFixed(0);
-  facts.push(`${memoRate}%の試合でメモを記録`);
-
-  // キーワード出現頻度（事実のみ）
-  const allText = memos.join(' ').toLowerCase();
-  const keywords = {
-    'チェイス': 'チェイス',
-    '発電機': '発電機',
-    '救助': '救助',
-    'キャンプ': 'キャンプ',
-    'トンネル': 'トンネル',
-    'ミス': 'ミス',
-    '運': '運要素',
-    'ラグ': '通信状況'
-  };
-
-  Object.entries(keywords).forEach(([word, label]) => {
-    const count = (allText.match(new RegExp(word, 'g')) || []).length;
-    if (count >= 3) {
-      facts.push(`${label}について${count}回言及`);
-    }
-  });
-
-  // 平均文字数
-  const avgLength = memos.reduce((sum, memo) => sum + memo.length, 0) / memos.length;
-  if (avgLength >= 20) {
-    facts.push(`平均${avgLength.toFixed(0)}文字の詳細記録`);
-  } else if (avgLength <= 8) {
-    facts.push(`平均${avgLength.toFixed(0)}文字の簡潔記録`);
-  }
-
-  return facts;
-};
-
-// 改善方向性（事実ベース）
-const getImprovementDirections = (stats, results) => {
-  const directions = [];
-
-  // 脱出率が低い場合
-  if (stats.escapeRate <= 25) {
-    directions.push('脱出率25%以下 - 基礎スキル向上が必要');
-  }
-
-  // チームとの差が大きい場合
-  const diff = stats.escapeRate - stats.teamEscapeRate;
-  if (diff < -15) {
-    directions.push('チーム平均を大きく下回る - 個人スキルに課題');
-  } else if (diff > 15) {
-    directions.push('チーム平均を大きく上回る - 現在のレベル維持');
-  }
-
-  // 自己評価の一致度が低い場合
-  if (stats.consistencyRate <= 40) {
-    directions.push('自己評価一致度40%以下 - 客観的評価力の向上');
-  }
-
-  // 最近の下降傾向
-  if (stats.recentTrend && stats.recentTrend.personal < -10) {
-    directions.push('最近10%以上下降 - 原因の特定が必要');
-  }
-
-  // データ不足
-  if (results.length < 10) {
-    directions.push('試合数10未満 - より多くのデータ蓄積が必要');
-  }
-
-  // 特定キラーへの極端な弱さ
-  const worstKiller = Object.entries(stats.killerStats)
-    .filter(([_, data]) => data.games >= 3)
-    .map(([killer, data]) => ({ killer, rate: data.escapes / data.games * 100 }))
-    .sort((a, b) => a.rate - b.rate)[0];
-
-  if (worstKiller && worstKiller.rate <= 15) {
-    directions.push(`${worstKiller.killer}戦で極端に低い成績 - 専用対策が必要`);
-  }
-
-  return directions.length > 0 ? directions : ['現在のペースで継続'];
-};
-
 const AIAnalysis = ({ results }) => {
-  const analysis = generateFactualAnalysis(results);
+  const analysis = generateAnalysis(results);
 
   const analysisStyles = {
     container: {
