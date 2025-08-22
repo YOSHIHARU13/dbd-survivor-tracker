@@ -257,7 +257,7 @@ function App() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <p style={{ color: colors.primary, margin: 0 }}>
-            👤 {user?.type === 'google' ? `${user?.email} (Google)` : user?.email}
+            👤 {user?.type === 'google' ? `${user?.email} (Google)` : user?.email || 'お試し使用モード'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
