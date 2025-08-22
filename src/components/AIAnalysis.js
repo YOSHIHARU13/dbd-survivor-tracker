@@ -68,14 +68,6 @@ const generateAnalysis = (results) => {
   analysis.push(`【自己評価】平均${stats.avgRatingDisplay} / 一致度${stats.consistencyRate}%`);
   analysis.push('');
 
-  // 直近3試合の様子
-  const recentComment = getRecentComment(results.slice(0, 3));
-  analysis.push('【直近3試合の様子】');
-  analysis.push(recentComment);
-
-  return { advice: analysis, stats };
-};
-
 // 統計計算
 const calculateStats = (results) => {
   const stats = {
