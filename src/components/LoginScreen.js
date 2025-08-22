@@ -1,5 +1,5 @@
 // components/LoginScreen.js
-import React, { useState } from 'react';
+import React, { useState } from 'react'
 import { auth } from '../firebase';
 import { 
   createUserWithEmailAndPassword, 
@@ -365,7 +365,7 @@ const LoginScreen = ({ onLogin }) => {
           ...(loading ? loginStyles.button.disabled : {})
         }}
       >
-        📧 Googleで簡単登録
+      　Google認証でログインする
       </button>
 
       <div style={{margin: '20px 0', color: colors.textMuted, fontSize: '0.9rem'}}>
