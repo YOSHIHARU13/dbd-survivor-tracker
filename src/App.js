@@ -1,287 +1,371 @@
-// components/StatsDisplay.js
-import React from 'react';
-import { KILLERS } from '../utils/constants';
-import { styles, colors } from '../styles/commonStyles';
-import AIAnalysis from './AIAnalysis';
+// App.js - ログイン状態永続化版
+import React, { useState, useEffect } from 'react';
+import LoginScreen from './components/LoginScreen';
+import BattleForm from './components/BattleForm';
+import StatsDisplay from './components/StatsDisplay';
+import FriendSettings from './components/FriendSettings';
+import { apiService } from './services/api';
+import { userSettingsService } from './services/userSettings';
+import { styles, colors } from './styles/commonStyles';
 
-const StatsDisplay = ({
-  results,
-  period,
-  setPeriod,
-  killerFilter,
-  setKillerFilter,
-  showStats,
-  setShowStats,
-  isLoading,
-  onClearAllData,
-  onDeleteResult // 個別削除用のコールバック関数を追加
-}) => {
+function App() {
+  // 認証状態
+  const [user, setUser] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true); // 初期化中フラグ
+  
+  // ユーザー設定
+  const [userSettings, setUserSettings] = useState(null);
+  const [showFriendSettings, setShowFriendSettings] = useState(false);
+  
+  // フォーム状態
+  const [battleDate, setBattleDate] = useState("");
+  const [killer, setKiller] = useState("");
+  const [killerLevel, setKillerLevel] = useState("");
+  const [stage, setStage] = useState("");
+  const [memo, setMemo] = useState("");
+  const [myStatus, setMyStatus] = useState("逃");
+  const [others, setOthers] = useState(["野良", "野良", "野良"]); // デフォルトを野良に変更
+  const [selfRating, setSelfRating] = useState("B");
+  const [othersStatus, setOthersStatus] = useState({ 0: "逃", 1: "逃", 2: "逃" });
+  
+  // データ状態
+  const [results, setResults] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [period, setPeriod] = useState("today");
+  const [killerFilter, setKillerFilter] = useState("");
+  const [showStats, setShowStats] = useState(false);
 
-  // フィルタリング
-  const filteredResults = results.filter((r) => {
-    if (!r.battleDate) return false;
-    const rDate = new Date(r.battleDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (period === "today" && rDate.toDateString() !== today.toDateString()) return false;
-    if (period === "week" && (today - rDate) > 7 * 24 * 60 * 60 * 1000) return false;
-    if (killerFilter && r.killer !== killerFilter) return false;
-    return true;
-  });
-
-  // 個別削除ハンドラー
-  const handleDeleteResult = (index) => {
-    if (window.confirm('この戦績を削除しますか？')) {
-      // filteredResults のインデックスから元の results のインデックスを取得
-      const originalIndex = results.findIndex(result => 
-        result === filteredResults[index]
-      );
-      if (originalIndex !== -1 && onDeleteResult) {
-        onDeleteResult(originalIndex);
+  // 初期化：ローカルストレージからログイン状態を復元
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        const savedUser = localStorage.getItem('dbd_user');
+        if (savedUser) {
+          const userData = JSON.parse(savedUser);
+          console.log('💾 保存されたユーザー情報を復元:', userData);
+          
+          setUser(userData);
+          setIsLoggedIn(true);
+          
+          // データ読み込み
+          await Promise.all([
+            loadUserResults(userData.uid),
+            loadUserSettings(userData.uid)
+          ]);
+        }
+      } catch (error) {
+        console.warn('ユーザー情報復元エラー:', error);
+        // エラー時は保存データを削除
+        localStorage.removeItem('dbd_user');
+      } finally {
+        setIsInitializing(false);
       }
-    }
-  };
+    };
 
-  // 統計計算
-  const killerStats = {};
-  filteredResults.forEach((r) => {
-    if (!killerStats[r.killer]) {
-      killerStats[r.killer] = { totalGames: 0, totalEscapes: 0 };
-    }
-    killerStats[r.killer].totalGames++;
-    killerStats[r.killer].totalEscapes += Object.values(r.survivorStatus).filter((v) => v === "逃").length;
-  });
+    initializeApp();
+  }, []);
 
-  const dateStats = {};
-  filteredResults.forEach((r) => {
-    if (!dateStats[r.battleDate]) {
-      dateStats[r.battleDate] = { 
-        totalGames: 0, 
-        totalEscapes: 0, 
-        perPerson: {}, 
-        games: [] // 各試合の詳細を保存
-      };
-    }
-    dateStats[r.battleDate].totalGames++;
+  // データ読み込み
+  const loadUserResults = React.useCallback(async (userId) => {
+    if (!userId) return;
     
-    // 試合詳細を保存
-    dateStats[r.battleDate].games.push(r);
+    setIsLoading(true);
+    try {
+      const data = await apiService.loadUserResults(userId);
+      setResults(data);
+      console.log("✅ データ読み込み成功:", data.length, "件");
+    } catch (error) {
+      console.warn("データ読み込みエラー:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // ユーザー設定読み込み
+  const loadUserSettings = React.useCallback(async (userId) => {
+    try {
+      const settings = await userSettingsService.getUserSettings(userId);
+      setUserSettings(settings);
+      setOthers(settings.defaultSurvivors || ["野良", "野良", "野良"]);
+      console.log("✅ ユーザー設定読み込み成功:", settings);
+    } catch (error) {
+      console.warn("ユーザー設定読み込みエラー:", error);
+      // エラー時はデフォルト設定
+      setOthers(["野良", "野良", "野良"]);
+    }
+  }, []);
+
+  // ログイン処理
+  const handleLogin = React.useCallback((userData) => {
+    setUser(userData);
+    setIsLoggedIn(true);
     
-    Object.keys(r.survivorStatus).forEach((person) => {
-      let actualName = person;
-      if (person.includes('(') && person.includes(')')) {
-        actualName = person.match(/\(([^)]+)\)/)?.[1] || person;
-      }
-      
-      if (!dateStats[r.battleDate].perPerson[actualName]) {
-        dateStats[r.battleDate].perPerson[actualName] = { games: 0, escapes: 0 };
-      }
-      dateStats[r.battleDate].perPerson[actualName].games++;
-      if (r.survivorStatus[person] === "逃") {
-        dateStats[r.battleDate].perPerson[actualName].escapes++;
-      }
+    // ローカルストレージに保存
+    localStorage.setItem('dbd_user', JSON.stringify(userData));
+    console.log('💾 ユーザー情報を保存:', userData);
+    
+    // 戦績データとユーザー設定を並行して読み込み
+    setTimeout(() => {
+      Promise.all([
+        loadUserResults(userData.uid),
+        loadUserSettings(userData.uid)
+      ]).catch(err => {
+        console.warn("初回データ読み込みに失敗:", err);
+      });
+    }, 100);
+  }, [loadUserResults, loadUserSettings]);
+
+  // ログアウト処理
+  const handleLogout = React.useCallback(() => {
+    setUser(null);
+    setIsLoggedIn(false);
+    setResults([]);
+    setUserSettings(null);
+    setOthers(["野良", "野良", "野良"]); // リセット
+    
+    // ローカルストレージからも削除
+    localStorage.removeItem('dbd_user');
+    console.log('💾 ユーザー情報を削除してログアウト');
+  }, []);
+
+  // フレンド設定更新
+  const handleSettingsUpdated = React.useCallback((newSettings) => {
+    setUserSettings(prevSettings => ({ ...prevSettings, ...newSettings }));
+    setOthers(newSettings.defaultSurvivors || ["野良", "野良", "野良"]);
+    setShowFriendSettings(false);
+  }, []);
+
+  // 戦績追加処理
+  const addResult = React.useCallback(async () => {
+    if (!battleDate || !killer || !stage || killerLevel === "") {
+      alert("必須項目を入力してください");
+      return;
+    }
+
+    const level = parseInt(killerLevel);
+    if (isNaN(level) || level < 0 || level > 50) {
+      alert("キラーレベルは0～50で入力してください");
+      return;
+    }
+
+    const survivorStatus = { 自分: myStatus };
+    others.forEach((name, i) => {
+      survivorStatus[`枠${i + 1} (${name})`] = othersStatus[i];
     });
-    dateStats[r.battleDate].totalEscapes += Object.values(r.survivorStatus).filter((v) => v === "逃").length;
-  });
+
+    const newResult = {
+      battleDate, killer, killerLevel: level, stage, selfRating, memo, survivorStatus,
+      timestamp: new Date().toLocaleString(),
+      userId: user?.uid || 'anonymous'
+    };
+
+    try {
+      await apiService.createResult(newResult);
+      setMemo("");
+      alert("戦績が追加されました！");
+      
+      // データ再読み込み
+      if (user?.uid) {
+        loadUserResults(user.uid);
+      }
+    } catch (error) {
+      alert("保存に失敗しました");
+    }
+  }, [battleDate, killer, killerLevel, stage, selfRating, memo, myStatus, others, othersStatus, user?.uid, loadUserResults]);
+
+  // 個別戦績削除処理
+  const handleDeleteResult = React.useCallback(async (index) => {
+    if (!user?.uid) {
+      alert("ユーザー情報が見つかりません");
+      return;
+    }
+
+    try {
+      const resultToDelete = results[index];
+      if (!resultToDelete) {
+        alert("削除対象の戦績が見つかりません");
+        return;
+      }
+
+      // サーバーから削除（APIにdeleteResult関数があると仮定）
+      // 注意: 実際のAPI実装に合わせて調整が必要です
+      if (apiService.deleteResult) {
+        await apiService.deleteResult(resultToDelete.id || index, user.uid);
+      } else {
+        // deleteResult関数がない場合は、全削除→再作成で対応
+        const updatedResults = results.filter((_, i) => i !== index);
+        await apiService.deleteAllResults(user.uid);
+        
+        // 残りの戦績を再作成
+        for (const result of updatedResults) {
+          await apiService.createResult(result);
+        }
+      }
+
+      // ローカル状態も更新
+      setResults(prevResults => prevResults.filter((_, i) => i !== index));
+      
+      console.log("✅ 戦績削除成功:", index);
+      alert("戦績を削除しました");
+      
+    } catch (error) {
+      console.error("戦績削除エラー:", error);
+      alert("削除中にエラーが発生しました");
+    }
+  }, [results, user?.uid]);
+
+  // 全データ削除
+  const clearAllData = React.useCallback(async () => {
+    if (!window.confirm("本当に全てのデータを削除しますか？")) return;
+    
+    try {
+      await apiService.deleteAllResults(user?.uid);
+      setResults([]);
+      alert("全データを削除しました");
+    } catch (error) {
+      alert("削除中にエラーが発生しました");
+    }
+  }, [user?.uid]);
+
+  // 初期化中の表示
+  if (isInitializing) {
+    return (
+      <div style={{
+        ...styles.container,
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ color: colors.primary, fontSize: '1.2rem' }}>🔄 読み込み中...</p>
+          <p style={{ color: colors.textMuted }}>ログイン状態を確認しています</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ログイン前の表示
+  if (!isLoggedIn) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
 
   return (
-    <div style={{ marginTop: "30px" }}>
-      <label style={styles.label}>期間</label>
-      <select value={period} onChange={(e) => setPeriod(e.target.value)} style={styles.select}>
-        <option value="today">今日</option>
-        <option value="week">1週間</option>
-        <option value="all">全期間</option>
-      </select>
+    <div style={styles.container}>
+      {/* ヘッダー */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div>
+          <p style={{ color: colors.primary, margin: 0 }}>
+            👤 {user?.type === 'google' ? `${user?.email} (Google)` : user?.email}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button 
+            onClick={() => setShowFriendSettings(true)}
+            style={{
+              ...styles.button, 
+              backgroundColor: colors.primary, 
+              padding: '8px 16px', 
+              fontSize: '0.9rem', 
+              width: 'auto'
+            }}
+          >
+            ⚙️ フレンド設定
+          </button>
+          <button 
+            onClick={handleLogout} 
+            style={{
+              ...styles.button, 
+              backgroundColor: colors.textDark, 
+              padding: '8px 16px', 
+              fontSize: '0.9rem', 
+              width: 'auto'
+            }}
+          >
+            ログアウト
+          </button>
+        </div>
+      </div>
 
-      <label style={styles.label}>キラー絞り込み</label>
-      <select value={killerFilter} onChange={(e) => setKillerFilter(e.target.value)} style={styles.select}>
-        <option value="">全キラー</option>
-        {KILLERS.map((k) => <option key={k} value={k}>{k}</option>)}
-      </select>
+      {/* トップ画像 */}
+      <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+        <img 
+          src="/top.webp" 
+          alt="DBD戦績管理アプリ" 
+          style={{
+            maxWidth: '100%',
+            height: 'auto',
+            borderRadius: '8px',
+            boxShadow: `0 4px 8px rgba(0,0,0,0.3)`
+          }}
+        />
+      </div>
 
-      <button
-        style={{ ...styles.button, marginTop: "8px" }}
-        onClick={() => setShowStats(!showStats)}
-        disabled={isLoading}
-      >
-        {isLoading ? "読み込み中..." : showStats ? "一覧を隠す" : "一覧を表示"}
-      </button>
+      <h1 style={styles.heading}>DBD戦績管理アプリ</h1>
 
-      <button
-        style={{
-          ...styles.button,
-          marginTop: "8px",
-          marginLeft: "10px",
-          backgroundColor: "#dc3545"
-        }}
-        onClick={onClearAllData}
-      >
-        全データ削除
-      </button>
-
-      {/* AI分析コンポーネント（常に表示） */}
-      {filteredResults.length > 0 && (
-        <AIAnalysis results={filteredResults} />
+      {/* フレンド設定が読み込まれているかの表示 */}
+      {userSettings && userSettings.friends && userSettings.friends.length > 0 && (
+        <div style={{ 
+          marginBottom: '20px', 
+          padding: '10px', 
+          backgroundColor: colors.backgroundLight, 
+          borderRadius: '6px',
+          fontSize: '0.9rem',
+          color: colors.textMuted
+        }}>
+          👥 登録フレンド: {userSettings.friends.join(', ')}
+        </div>
       )}
 
-      {showStats && (
-        <>
-          {/* 戦績詳細一覧（削除ボタン付き） */}
-          <h2 style={{ color: colors.primary, marginTop: "30px" }}>■ 戦績詳細一覧</h2>
-          {filteredResults.length === 0 ? (
-            <p>試合データがありません</p>
-          ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={styles.table}>
-                <thead>
-                  <tr>
-                    <th style={styles.th}>日付</th>
-                    <th style={styles.th}>キラー</th>
-                    <th style={styles.th}>レベル</th>
-                    <th style={styles.th}>ステージ</th>
-                    <th style={styles.th}>自分</th>
-                    <th style={styles.th}>自己評価</th>
-                    <th style={styles.th}>チーム脱出</th>
-                    <th style={styles.th}>メモ</th>
-                    <th style={styles.th}>削除</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredResults.map((result, index) => {
-                    const myStatus = result.survivorStatus?.['自分'] || '不明';
-                    const teamEscapes = Object.values(result.survivorStatus || {}).filter(s => s === '逃').length;
-                    
-                    return (
-                      <tr key={index} style={{
-                        backgroundColor: myStatus === '逃' ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)'
-                      }}>
-                        <td style={styles.td}>{result.battleDate}</td>
-                        <td style={styles.td}>{result.killer}</td>
-                        <td style={styles.td}>{result.killerLevel || '-'}</td>
-                        <td style={styles.td}>{result.stage}</td>
-                        <td style={{
-                          ...styles.td,
-                          fontWeight: 'bold',
-                          color: myStatus === '逃' ? '#4CAF50' : '#F44336'
-                        }}>
-                          {myStatus === '逃' ? '🟢 逃' : '🔴 死'}
-                        </td>
-                        <td style={styles.td}>{result.selfRating || '-'}</td>
-                        <td style={styles.td}>{teamEscapes}/4人</td>
-                        <td style={{
-                          ...styles.td,
-                          maxWidth: '200px',
-                          fontSize: '0.9rem',
-                          wordBreak: 'break-word',
-                          whiteSpace: 'pre-wrap'
-                        }}>
-                          {result.memo || '-'}
-                        </td>
-                        <td style={styles.td}>
-                          <button
-                            style={{
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              border: 'none',
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '0.8rem'
-                            }}
-                            onClick={() => handleDeleteResult(index)}
-                            title="この戦績を削除"
-                          >
-                            削除
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {/* 戦績入力フォーム */}
+      <BattleForm
+        battleDate={battleDate}
+        setBattleDate={setBattleDate}
+        killer={killer}
+        setKiller={setKiller}
+        killerLevel={killerLevel}
+        setKillerLevel={setKillerLevel}
+        stage={stage}
+        setStage={setStage}
+        selfRating={selfRating}
+        setSelfRating={setSelfRating}
+        memo={memo}
+        setMemo={setMemo}
+        myStatus={myStatus}
+        setMyStatus={setMyStatus}
+        others={others}
+        setOthers={setOthers}
+        othersStatus={othersStatus}
+        setOthersStatus={setOthersStatus}
+        onSubmit={addResult}
+        userSettings={userSettings} // フレンドリストを渡す
+      />
 
-          <h2 style={{ color: colors.primary, marginTop: "40px" }}>■ キラー別 脱出率</h2>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>キラー</th>
-                <th style={styles.th}>試合数</th>
-                <th style={styles.th}>脱出数</th>
-                <th style={styles.th}>脱出率（％）</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(killerStats).length === 0 ? (
-                <tr><td style={styles.td} colSpan={4}>試合データがありません</td></tr>
-              ) : (
-                Object.entries(killerStats).map(([killerName, stats]) => (
-                  <tr key={killerName}>
-                    <td style={styles.td}>{killerName}</td>
-                    <td style={styles.td}>{stats.totalGames}</td>
-                    <td style={styles.td}>{stats.totalEscapes}</td>
-                    <td style={styles.td}>
-                      {stats.totalGames > 0
-                        ? ((stats.totalEscapes / (stats.totalGames * 4)) * 100).toFixed(2)
-                        : "0.00"}%
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* 統計表示 */}
+      <StatsDisplay
+        results={results}
+        period={period}
+        setPeriod={setPeriod}
+        killerFilter={killerFilter}
+        setKillerFilter={setKillerFilter}
+        showStats={showStats}
+        setShowStats={setShowStats}
+        isLoading={isLoading}
+        onClearAllData={clearAllData}
+        onDeleteResult={handleDeleteResult} // 個別削除機能を追加
+      />
 
-          <h2 style={{ color: colors.primary, marginTop: "40px" }}>■ 日付別 脱出率</h2>
-          {Object.entries(dateStats).length === 0 ? (
-            <p>試合データがありません</p>
-          ) : (
-            Object.entries(dateStats).map(([date, stats]) => (
-              <div key={date} style={{ marginBottom: "20px" }}>
-                <h3 style={{ color: colors.primary }}>{date}</h3>
-                <p>
-                  全体 脱出率:{" "}
-                  {stats.totalGames > 0
-                    ? ((stats.totalEscapes / (stats.totalGames * 4)) * 100).toFixed(2)
-                    : "0.00"}%
-                </p>
-                <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>サバイバー名</th>
-                      <th style={styles.th}>試合数</th>
-                      <th style={styles.th}>脱出数</th>
-                      <th style={styles.th}>脱出率（％）</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(stats.perPerson).map(([person, pstats]) => (
-                      <tr key={person}>
-                        <td style={styles.td}>{person}</td>
-                        <td style={styles.td}>{pstats.games}</td>
-                        <td style={styles.td}>{pstats.escapes}</td>
-                        <td style={styles.td}>
-                          {pstats.games > 0
-                            ? ((pstats.escapes / pstats.games) * 100).toFixed(2)
-                            : "0.00"}%
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))
-          )}
-        </>
-      )}
-
-      {/* AI分析コンポーネント（一番下に常に表示） */}
-      {filteredResults.length > 0 && (
-        <AIAnalysis results={filteredResults} />
+      {/* フレンド設定モーダル */}
+      {showFriendSettings && (
+        <FriendSettings
+          user={user}
+          onClose={() => setShowFriendSettings(false)}
+          onSettingsUpdated={handleSettingsUpdated}
+        />
       )}
     </div>
   );
-};
+}
 
-export default StatsDisplay;
+export default App;
