@@ -218,9 +218,6 @@ function App() {
           <p style={{ color: colors.primary, margin: 0 }}>
             👤 {user?.type === 'google' ? `${user?.email} (Google)` : user?.email}
           </p>
-          <p style={{ color: colors.textDark, fontSize: '0.8rem', margin: 0 }}>
-            ✅ 戦績は安全に保存されます | 🔄 自動ログイン有効
-          </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button 
