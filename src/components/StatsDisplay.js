@@ -47,9 +47,20 @@ const StatsDisplay = ({
   const killerStats = {};
   filteredResults.forEach((r) => {
     if (!killerStats[r.killer]) {
-      killerStats[r.killer] = { totalGames: 0, totalEscapes: 0 };
+      killerStats[r.killer] = { 
+        totalGames: 0, 
+        personalEscapes: 0, // 個人脱出数
+        totalEscapes: 0     // チーム脱出数
+      };
     }
     killerStats[r.killer].totalGames++;
+    
+    // 個人脱出数をカウント
+    if (r.survivorStatus?.['自分'] === '逃') {
+      killerStats[r.killer].personalEscapes++;
+    }
+    
+    // チーム脱出数をカウント
     killerStats[r.killer].totalEscapes += Object.values(r.survivorStatus).filter((v) => v === "逃").length;
   });
 
@@ -204,26 +215,35 @@ const StatsDisplay = ({
               <tr>
                 <th style={styles.th}>キラー</th>
                 <th style={styles.th}>試合数</th>
-                <th style={styles.th}>脱出数</th>
-                <th style={styles.th}>脱出率（％）</th>
+                <th style={styles.th}>個人脱出数</th>
+                <th style={styles.th}>チーム脱出数</th>
               </tr>
             </thead>
             <tbody>
               {Object.entries(killerStats).length === 0 ? (
                 <tr><td style={styles.td} colSpan={4}>試合データがありません</td></tr>
               ) : (
-                Object.entries(killerStats).map(([killerName, stats]) => (
-                  <tr key={killerName}>
-                    <td style={styles.td}>{killerName}</td>
-                    <td style={styles.td}>{stats.totalGames}</td>
-                    <td style={styles.td}>{stats.totalEscapes}</td>
-                    <td style={styles.td}>
-                      {stats.totalGames > 0
-                        ? ((stats.totalEscapes / (stats.totalGames * 4)) * 100).toFixed(2)
-                        : "0.00"}%
-                    </td>
-                  </tr>
-                ))
+                Object.entries(killerStats).map(([killerName, stats]) => {
+                  const personalRate = stats.totalGames > 0 
+                    ? ((stats.personalEscapes / stats.totalGames) * 100).toFixed(1)
+                    : "0.0";
+                  const teamRate = stats.totalGames > 0
+                    ? ((stats.totalEscapes / (stats.totalGames * 4)) * 100).toFixed(1)
+                    : "0.0";
+                  
+                  return (
+                    <tr key={killerName}>
+                      <td style={styles.td}>{killerName}</td>
+                      <td style={styles.td}>{stats.totalGames}</td>
+                      <td style={styles.td}>
+                        {stats.personalEscapes} ({personalRate}%)
+                      </td>
+                      <td style={styles.td}>
+                        {stats.totalEscapes} ({teamRate}%)
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
