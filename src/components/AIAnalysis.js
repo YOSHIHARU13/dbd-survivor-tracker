@@ -201,41 +201,6 @@ const convertScoreToRating = (score) => {
   return 'D';
 };
 
-// 直近3試合のコメント生成
-const getRecentComment = (recentGames) => {
-  if (recentGames.length === 0) return 'まだ試合データがありません';
-  if (recentGames.length < 3) return `データが${recentGames.length}試合分のみです`;
-
-  const myEscapes = recentGames.filter(r => r.survivorStatus?.['自分'] === '逃').length;
-  const totalTeamEscapes = recentGames.reduce((sum, r) => 
-    sum + Object.values(r.survivorStatus || {}).filter(s => s === '逃').length, 0
-  );
-  const avgTeamEscapes = totalTeamEscapes / 3;
-
-  // 個人脱出率が高い場合
-  if (myEscapes >= 2) {
-    return `あなたの脱出率${((myEscapes/3)*100).toFixed(0)}%！素晴らしい成績です🎉`;
-  }
-  
-  // 個人は脱出できてないが、チーム貢献度が高い場合
-  if (myEscapes === 1 && avgTeamEscapes >= 2) {
-    return `チーム平均${avgTeamEscapes.toFixed(1)}人脱出！チームに良い影響を与えていますね👍`;
-  }
-  
-  // 個人は脱出できてないが、チームもそこそこの場合
-  if (myEscapes === 1 && avgTeamEscapes >= 1.3) {
-    return `チーム戦で粘り強く戦えていますね。次は脱出を狙いましょう！💪`;
-  }
-
-  // チーム全体が苦戦している場合
-  if (avgTeamEscapes < 1.3) {
-    return `強いキラーや苦手キラーと遭遇したかも？対策を覚えるのもおすすめです📚`;
-  }
-
-  // その他の場合
-  return `安定した試合運びができています。この調子で頑張りましょう！`;
-};
-
 // 自己評価スコア
 const getRatingScore = (rating) => {
   const map = { 'S': 5, 'A': 4, 'B': 3, 'C': 2, 'D': 1 };
