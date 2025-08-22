@@ -13,7 +13,8 @@ const StatsDisplay = ({
   showStats,
   setShowStats,
   isLoading,
-  onClearAllData
+  onClearAllData,
+  onDeleteResult // 個別削除用のコールバック関数を追加
 }) => {
 
   // フィルタリング
@@ -28,6 +29,19 @@ const StatsDisplay = ({
     if (killerFilter && r.killer !== killerFilter) return false;
     return true;
   });
+
+  // 個別削除ハンドラー
+  const handleDeleteResult = (index) => {
+    if (window.confirm('この戦績を削除しますか？')) {
+      // filteredResults のインデックスから元の results のインデックスを取得
+      const originalIndex = results.findIndex(result => 
+        result === filteredResults[index]
+      );
+      if (originalIndex !== -1 && onDeleteResult) {
+        onDeleteResult(originalIndex);
+      }
+    }
+  };
 
   // 統計計算
   const killerStats = {};
@@ -113,7 +127,7 @@ const StatsDisplay = ({
 
       {showStats && (
         <>
-          {/* 戦績詳細一覧（新規追加） */}
+          {/* 戦績詳細一覧（削除ボタン付き） */}
           <h2 style={{ color: colors.primary, marginTop: "30px" }}>■ 戦績詳細一覧</h2>
           {filteredResults.length === 0 ? (
             <p>試合データがありません</p>
@@ -130,6 +144,7 @@ const StatsDisplay = ({
                     <th style={styles.th}>自己評価</th>
                     <th style={styles.th}>チーム脱出</th>
                     <th style={styles.th}>メモ</th>
+                    <th style={styles.th}>削除</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -162,6 +177,23 @@ const StatsDisplay = ({
                           whiteSpace: 'pre-wrap'
                         }}>
                           {result.memo || '-'}
+                        </td>
+                        <td style={styles.td}>
+                          <button
+                            style={{
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.8rem'
+                            }}
+                            onClick={() => handleDeleteResult(index)}
+                            title="この戦績を削除"
+                          >
+                            削除
+                          </button>
                         </td>
                       </tr>
                     );
