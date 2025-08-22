@@ -120,11 +120,6 @@ const StatsDisplay = ({
         全データ削除
       </button>
 
-      {/* AI分析コンポーネント（1つだけ） */}
-      {filteredResults.length > 0 && (
-        <AIAnalysis results={filteredResults} />
-      )}
-
       {showStats && (
         <>
           {/* 戦績詳細一覧（削除ボタン付き） */}
@@ -274,6 +269,11 @@ const StatsDisplay = ({
             ))
           )}
         </>
+      )}
+
+      {/* AI分析コンポーネント（一番下に常に表示） */}
+      {filteredResults.length > 0 && (
+        <AIAnalysis results={filteredResults} />
       )}
     </div>
   );
