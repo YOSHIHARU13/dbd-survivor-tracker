@@ -125,11 +125,6 @@ const StatsDisplay = ({
         <AIAnalysis results={filteredResults} />
       )}
 
-      {/* AI分析コンポーネント（常に表示） */}
-      {filteredResults.length > 0 && (
-        <AIAnalysis results={filteredResults} />
-      )}
-
       {showStats && (
         <>
           {/* 戦績詳細一覧（削除ボタン付き） */}
