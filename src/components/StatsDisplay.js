@@ -30,13 +30,11 @@ const StatsDisplay = ({
     return true;
   });
 
-  // 個別削除ハンドラー
-  const handleDeleteResult = (index) => {
+  // 個別削除ハンドラー（ソート済みデータ用）
+  const handleDeleteResult = (result) => {
     if (window.confirm('この戦績を削除しますか？')) {
-      // filteredResults のインデックスから元の results のインデックスを取得
-      const originalIndex = results.findIndex(result => 
-        result === filteredResults[index]
-      );
+      // filteredResults から元の results のインデックスを取得
+      const originalIndex = results.findIndex(r => r === result);
       if (originalIndex !== -1 && onDeleteResult) {
         onDeleteResult(originalIndex);
       }
@@ -154,7 +152,9 @@ const StatsDisplay = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredResults.map((result, index) => {
+                  {filteredResults
+                    .sort((a, b) => new Date(b.battleDate) - new Date(a.battleDate)) // 新しい順にソート
+                    .map((result, index) => {
                     const myStatus = result.survivorStatus?.['自分'] || '不明';
                     const teamEscapes = Object.values(result.survivorStatus || {}).filter(s => s === '逃').length;
                     
@@ -195,7 +195,7 @@ const StatsDisplay = ({
                               cursor: 'pointer',
                               fontSize: '0.8rem'
                             }}
-                            onClick={() => handleDeleteResult(index)}
+                            onClick={() => handleDeleteResult(result)}
                             title="この戦績を削除"
                           >
                             削除
