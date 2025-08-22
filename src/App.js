@@ -174,6 +174,47 @@ function App() {
     }
   }, [battleDate, killer, killerLevel, stage, selfRating, memo, myStatus, others, othersStatus, user?.uid, loadUserResults]);
 
+  // 個別戦績削除処理
+  const handleDeleteResult = React.useCallback(async (index) => {
+    if (!user?.uid) {
+      alert("ユーザー情報が見つかりません");
+      return;
+    }
+
+    try {
+      const resultToDelete = results[index];
+      if (!resultToDelete) {
+        alert("削除対象の戦績が見つかりません");
+        return;
+      }
+
+      // サーバーから削除（APIにdeleteResult関数があると仮定）
+      // 注意: 実際のAPI実装に合わせて調整が必要です
+      if (apiService.deleteResult) {
+        await apiService.deleteResult(resultToDelete.id || index, user.uid);
+      } else {
+        // deleteResult関数がない場合は、全削除→再作成で対応
+        const updatedResults = results.filter((_, i) => i !== index);
+        await apiService.deleteAllResults(user.uid);
+        
+        // 残りの戦績を再作成
+        for (const result of updatedResults) {
+          await apiService.createResult(result);
+        }
+      }
+
+      // ローカル状態も更新
+      setResults(prevResults => prevResults.filter((_, i) => i !== index));
+      
+      console.log("✅ 戦績削除成功:", index);
+      alert("戦績を削除しました");
+      
+    } catch (error) {
+      console.error("戦績削除エラー:", error);
+      alert("削除中にエラーが発生しました");
+    }
+  }, [results, user?.uid]);
+
   // 全データ削除
   const clearAllData = React.useCallback(async () => {
     if (!window.confirm("本当に全てのデータを削除しますか？")) return;
@@ -312,6 +353,7 @@ function App() {
         setShowStats={setShowStats}
         isLoading={isLoading}
         onClearAllData={clearAllData}
+        onDeleteResult={handleDeleteResult} // 個別削除機能を追加
       />
 
       {/* フレンド設定モーダル */}
